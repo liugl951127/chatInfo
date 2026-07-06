@@ -1,0 +1,32 @@
+# 后端
+backend/**/target/
+backend/**/.mvn/
+backend/.mvn/wrapper/maven-wrapper.jar
+*.class
+*.log
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.env.local
+frontend/.env.*.local
+
+# 本地构建产物 (jar 太大, 用 mvn package 重新打)
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 日志 / 临时
+*.log
+nohup.out
+logs/

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.chat</groupId>
+        <artifactId>online-chat-parent</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>cs-gateway</artifactId>
+    <name>cs-gateway</name>
+    <description>网关层 - 路由/CORS/JWT 校验</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.chat</groupId>
+            <artifactId>cs-common</artifactId>
+            <exclusions>
+                <!--
+                  cs-gateway 是 WebFlux (Spring Cloud Gateway), 不能有 Spring MVC 在 classpath,
+                  否则 GatewayClassPathWarning 会拒启动。
+                  cs-common 里的 JwtAuthInterceptor / WebMvcConfigSupport 只在 servlet 服务用,
+                  cs-gateway 不消费这些类, 编译期安全。
+                -->
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-web</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -1,0 +1,42 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: cs-gateway
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      timeout: 3000
+  cloud:
+    gateway:
+      # 关闭按服务名自动路由(单机演示用不到 nacos)
+      discovery:
+        locator:
+          enabled: false
+      routes:
+        - id: cs-auth
+          uri: http://localhost:9001
+          predicates:
+            - Path=/auth/**
+        - id: cs-im
+          uri: http://localhost:9002
+          predicates:
+            - Path=/api/im/**
+        # 允许 WebSocket 握手
+        - id: cs-im-ws
+          uri: http://localhost:9002
+          predicates:
+            - Path=/ws/**
+
+chat:
+  jwt:
+    # 生产环境务必覆盖 (≥ 32 字符, HS256)
+    secret: online-chat-jwt-secret-please-change-in-production
+
+logging:
+  level:
+    com.chat: DEBUG
+    org.springframework.cloud.gateway: INFO

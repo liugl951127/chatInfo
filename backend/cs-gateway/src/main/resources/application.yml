@@ -33,8 +33,8 @@ spring:
 
 chat:
   jwt:
-    # 生产环境务必覆盖 (≥ 32 字符, HS256)
-    secret: online-chat-jwt-secret-please-change-in-production
+    # 64 字节随机 (HS256 要求 ≥ 32); 生产请改用环境变量 / 配置中心
+    secret: 5vQeSUDLFEt81MPAmQetxV7i8fBJLTSjPCf15seKgOI7PTXou5vgcc4M01aoseUJ
 
 logging:
   level:

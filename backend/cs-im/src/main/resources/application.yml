@@ -8,7 +8,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/online_chat?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
     username: root
-    password: root
+    password: 951127
   data:
     redis:
       host: localhost
@@ -28,7 +28,7 @@ mybatis-plus:
 
 chat:
   jwt:
-    secret: online-chat-jwt-secret-please-change-in-production
+    secret: 5vQeSUDLFEt81MPAmQetxV7i8fBJLTSjPCf15seKgOI7PTXou5vgcc4M01aoseUJ
     ttl-ms: 86400000
 
 logging:

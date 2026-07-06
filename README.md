@@ -58,12 +58,13 @@ online-chat/
 - JDK 17+
 - Maven 3.8+
 - Node 18+ / npm 9+
-- MySQL 8.0+ (root/root, 或自行修改 application.yml)
+- MySQL 8.0+ (默认 `root / 951127`, 详见 application.yml)
 - Redis 6.0+ (默认 localhost:6379)
 
 ### 2. 初始化数据库
 ```bash
-mysql -uroot -p < sql/schema.sql
+# 默认账号: root / 951127 (在 application.yml 里)
+mysql -uroot -p951127 < sql/schema.sql
 ```
 脚本会创建 `online_chat` 数据库, 三张表 (user / chat_session / chat_message), 以及演示账号 (密码均为 `123456`):
 
@@ -177,11 +178,12 @@ client.send(`/app/send/${sessionId}`, {
 ```yaml
 chat:
   jwt:
-    secret: online-chat-jwt-secret-please-change-in-production  # 生产必改 (≥32 字符)
-    ttl-ms: 86400000                                              # 24h
+    secret: 5vQeSUDLFEt81MPAmQetxV7i8fBJLTSjPCf15seKgOI7PTXou5vgcc4M01aoseUJ  # 64 字节随机 (HS512)
+    ttl-ms: 86400000                                                              # 24h
 ```
 
 数据库账号/密码、Redis 地址在每个服务的 `application.yml` 里改。
+默认 MySQL: `root / 951127` (cs-auth / cs-im 的 datasource 段)。
 
 ## 已知简化
 

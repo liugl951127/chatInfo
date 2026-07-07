@@ -22,9 +22,11 @@ export class StompClient {
 
   connect(path = '/ws/customer') {
     this._intentionallyClosed = false
-    const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${path}?token=${encodeURIComponent(this.token)}`
+    const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws'
+    const brokerURL = `${wsProtocol}://${location.host}${path}?token=${encodeURIComponent(this.token)}`
     this.client = new Client({
-      url,
+      // @stomp/stompjs v6+ 用 brokerURL (v5 及以前是 url)
+      brokerURL,
       // STOMP 库自带的 reconnectDelay 也设一下, 但我们自己用指数退避
       reconnectDelay: this._nextBackoff(),
       heartbeatIncoming: 20000,

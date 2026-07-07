@@ -18,6 +18,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: '0.0.0.0',
     proxy: {
       // 网关在 9000, 全部走后端入口
       '/auth': { target: 'http://localhost:9000', changeOrigin: true },

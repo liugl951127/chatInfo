@@ -13,15 +13,19 @@
 
       <el-form :model="form" label-width="0" @keyup.enter="submit">
         <el-form-item>
-          <el-input v-model="form.username" placeholder="用户名" prefix-icon="User" />
+          <el-input v-model="form.username" placeholder="用户名" prefix-icon="User"
+            size="large" :input-style="{ height: '44px' }" />
         </el-form-item>
         <el-form-item>
-          <el-input v-model="form.password" placeholder="密码" type="password" show-password prefix-icon="Lock" />
+          <el-input v-model="form.password" placeholder="密码" type="password" show-password
+            prefix-icon="Lock" size="large" :input-style="{ height: '44px' }" />
         </el-form-item>
         <el-form-item v-if="mode === 'register'">
-          <el-input v-model="form.nickname" placeholder="昵称" prefix-icon="Avatar" />
+          <el-input v-model="form.nickname" placeholder="昵称" prefix-icon="Avatar"
+            size="large" :input-style="{ height: '44px' }" />
         </el-form-item>
-        <el-button type="primary" class="submit-btn" :loading="loading" @click="submit">
+        <el-button type="primary" class="submit-btn" :loading="loading" size="large"
+          @click="submit">
           {{ mode === 'login' ? '登 录' : '注 册' }}
         </el-button>
 
@@ -73,13 +77,16 @@ async function submit() {
 <style scoped>
 .login-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 16px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 .login-card {
   width: 380px;
+  max-width: 100%;
 }
 .header {
   display: flex;
@@ -92,6 +99,9 @@ async function submit() {
 }
 .submit-btn {
   width: 100%;
+}
+:deep(.submit-btn) {
+  height: 44px;
 }
 .tips {
   margin-top: 12px;
@@ -106,5 +116,14 @@ async function submit() {
   background: #fff;
   padding: 0 4px;
   border-radius: 3px;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    width: 100%;
+  }
+  .title {
+    font-size: 16px;
+  }
 }
 </style>

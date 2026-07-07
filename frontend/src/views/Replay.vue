@@ -1,0 +1,276 @@
+<template>
+  <div class="replay-page">
+    <header class="topbar">
+      <span class="title">📼 会话回溯</span>
+      <span class="meta">会话 #{{ sessionId }} · 共 {{ records.length }} 段录像</span>
+      <el-button size="small" @click="$router.back()">返回</el-button>
+    </header>
+
+    <main class="main">
+      <!-- 录像列表 -->
+      <aside class="sidebar">
+        <div class="sb-header">录像片段</div>
+        <div v-if="!records.length" class="empty">
+          <el-empty description="该会话暂无录像" :image-size="60" />
+        </div>
+        <div
+          v-for="r in records"
+          :key="r.id"
+          class="rec-item"
+          :class="{ active: current?.id === r.id }"
+          @click="selectRecord(r)"
+        >
+          <div class="rec-row1">
+            <span class="rec-id">#{{ r.id }}</span>
+            <el-tag size="small" :type="r.endReason ? 'info' : 'warning'">
+              {{ r.endReason ? endReasonText(r.endReason) : '录制中' }}
+            </el-tag>
+          </div>
+          <div class="rec-row2">
+            <span>起: {{ formatTime(r.startedAt) }}</span>
+            <span v-if="r.endedAt">止: {{ formatTime(r.endedAt) }}</span>
+          </div>
+          <div class="rec-row3">
+            <span>{{ r.chunkCount }} 段</span>
+            <span>{{ formatBytes(r.totalBytes) }}</span>
+            <span v-if="r.userId !== userStore.id" class="rec-peer">被录制方 #{{ r.userId }}</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 播放器 -->
+      <section class="player-area">
+        <div v-if="!current" class="placeholder">
+          <el-empty description="选择左侧的录像片段查看" :image-size="100" />
+        </div>
+        <div v-else class="player">
+          <div class="player-header">
+            <div>
+              <span class="rec-num">录像 #{{ current.id }}</span>
+              <span class="rec-status">
+                <el-tag size="small" :type="current.endReason ? 'info' : 'warning'">
+                  {{ current.endReason ? endReasonText(current.endReason) : '录制中' }}
+                </el-tag>
+                <el-tag size="small" type="success" v-if="current.consentGiven">已获同意</el-tag>
+              </span>
+            </div>
+            <div class="actions">
+              <el-button size="small" @click="downloadAll" :disabled="!allBlobs.length">
+                <el-icon><Download /></el-icon> 下载完整录像
+              </el-button>
+              <el-button size="small" @click="rebuildBlob" :disabled="!currentChunks.length" :loading="rebuilding">
+                <el-icon><Refresh /></el-icon> 重新加载
+              </el-button>
+            </div>
+          </div>
+          <video
+            v-if="videoSrc"
+            ref="videoEl"
+            :src="videoSrc"
+            controls
+            autoplay
+            class="video"
+          />
+          <div v-else class="video-placeholder">
+            <el-icon v-if="loading" class="is-loading"><Loading /></el-icon>
+            <span v-else>正在准备视频...</span>
+          </div>
+
+          <div v-if="current" class="meta-table">
+            <div class="row"><span class="k">起止时间</span><span class="v">{{ formatTime(current.startedAt) }} → {{ current.endedAt ? formatTime(current.endedAt) : '进行中' }}</span></div>
+            <div class="row"><span class="k">结束原因</span><span class="v">{{ current.endReason ? endReasonText(current.endReason) : '—' }}</span></div>
+            <div class="row"><span class="k">分片数</span><span class="v">{{ current.chunkCount }} 段 / {{ formatBytes(current.totalBytes) }}</span></div>
+            <div class="row"><span class="k">用户授权</span><span class="v">{{ current.consentGiven ? '✅ 是' : '❌ 否' }}</span></div>
+            <div class="row"><span class="k">分片明细</span><span class="v chunks-list">
+              <span v-for="c in currentChunks" :key="c.id" class="chunk-pill" :title="`#${c.sequenceNo} · ${formatBytes(c.byteSize)} · ${c.durationMs}ms`">
+                #{{ c.sequenceNo }} {{ formatBytes(c.byteSize) }}
+              </span>
+            </span></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { Download, Refresh, Loading } from '@element-plus/icons-vue'
+import { useUserStore } from '@/stores/user'
+import { recordApi } from '@/api/record'
+
+const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
+
+const sessionId = computed(() => Number(route.params.sessionId))
+const records = ref([])
+const current = ref(null)
+const currentChunks = ref([])
+const videoSrc = ref('')
+const loading = ref(false)
+const rebuilding = ref(false)
+const allBlobs = ref([])  // 缓存已加载的所有 chunk binary (用于合并下载)
+const videoEl = ref(null)
+
+onMounted(async () => {
+  try {
+    const r = await recordApi.sessionRecords(sessionId.value)
+    if (r.code !== 0) {
+      ElMessage.error('加载录像列表失败: ' + r.message)
+      return
+    }
+    records.value = r.data.records || []
+  } catch (e) {
+    ElMessage.error('加载录像列表失败')
+  }
+})
+
+onBeforeUnmount(() => {
+  if (videoSrc.value) URL.revokeObjectURL(videoSrc.value)
+  allBlobs.value = []
+})
+
+async function selectRecord(r) {
+  if (current.value?.id === r.id) return
+  current.value = r
+  currentChunks.value = []
+  if (videoSrc.value) { URL.revokeObjectURL(videoSrc.value); videoSrc.value = '' }
+  allBlobs.value = []
+  await rebuildBlob()
+}
+
+async function rebuildBlob() {
+  if (!current.value) return
+  loading.value = true
+  rebuilding.value = true
+  try {
+    // 拉分片列表
+    const resp = await recordApi.recordChunks(current.value.id)
+    if (resp.code !== 0) {
+      ElMessage.error('分片列表拉取失败: ' + resp.message)
+      return
+    }
+    const chunks = resp.data
+    currentChunks.value = chunks
+    if (!chunks.length) {
+      ElMessage.warning('该录像没有分片')
+      return
+    }
+    // 并发下载所有分片二进制, 按 sequenceNo 排序
+    chunks.sort((a, b) => a.sequenceNo - b.sequenceNo)
+    const blobs = await Promise.all(chunks.map(c => recordApi.downloadChunkBlob(c.id)))
+    allBlobs.value = blobs
+    // 合并为单个 Blob (WebM 直拼, 浏览器能识别首段)
+    const merged = new Blob(blobs, { type: chunks[0].mimeType || 'video/webm' })
+    if (videoSrc.value) URL.revokeObjectURL(videoSrc.value)
+    videoSrc.value = URL.createObjectURL(merged)
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('加载分片失败: ' + (e?.message || e))
+  } finally {
+    loading.value = false
+    rebuilding.value = false
+  }
+}
+
+function downloadAll() {
+  if (!allBlobs.value.length || !current.value) return
+  const merged = new Blob(allBlobs.value, { type: 'video/webm' })
+  const url = URL.createObjectURL(merged)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `record-${current.value.id}-${formatTimeForFile(current.value.startedAt)}.webm`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  ElMessage.success('下载已开始')
+}
+
+function endReasonText(r) {
+  return { NORMAL: '正常结束', USER_STOP: '用户停止', PAGE_CLOSE: '页面关闭', PROCESS_KILLED: '进程被杀', ERROR: '异常结束' }[r] || r
+}
+function formatTime(s) {
+  if (!s) return '—'
+  const d = new Date(s)
+  return d.toLocaleString('zh-CN', { hour12: false })
+}
+function formatTimeForFile(s) {
+  if (!s) return 'unknown'
+  return new Date(s).toISOString().replace(/[:.]/g, '-')
+}
+function formatBytes(n) {
+  if (n < 1024) return n + ' B'
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB'
+  return (n / 1024 / 1024).toFixed(2) + ' MB'
+}
+</script>
+
+<style scoped>
+.replay-page { display: flex; flex-direction: column; height: 100vh; background: #f5f7fa; }
+.topbar {
+  height: 48px; padding: 0 16px; background: #fff; border-bottom: 1px solid #ebeef5;
+  display: flex; align-items: center; gap: 12px;
+  font-size: 14px;
+}
+.topbar .title { font-weight: 600; font-size: 16px; }
+.topbar .meta { color: #909399; flex: 1; }
+
+.main { flex: 1; display: flex; min-height: 0; }
+.sidebar {
+  width: 280px; background: #fff; border-right: 1px solid #ebeef5;
+  overflow-y: auto; flex-shrink: 0;
+}
+.sb-header { padding: 12px 16px; font-weight: 600; border-bottom: 1px solid #ebeef5; background: #fafbfc; }
+.empty { padding: 20px; }
+.rec-item {
+  padding: 10px 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer;
+  transition: background 0.2s;
+}
+.rec-item:hover { background: #f5f7fa; }
+.rec-item.active { background: #ecf5ff; border-left: 3px solid #409eff; }
+.rec-row1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.rec-id { font-family: 'Courier New', monospace; font-weight: 500; }
+.rec-row2 { font-size: 12px; color: #909399; display: flex; gap: 12px; margin-bottom: 2px; }
+.rec-row3 { font-size: 12px; color: #909399; display: flex; gap: 8px; }
+.rec-peer { color: #e6a23c; }
+
+.player-area { flex: 1; padding: 16px; overflow-y: auto; min-width: 0; }
+.placeholder { height: 100%; display: flex; align-items: center; justify-content: center; }
+.player { display: flex; flex-direction: column; gap: 12px; height: 100%; }
+.player-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.rec-num { font-weight: 600; font-size: 18px; margin-right: 8px; }
+.rec-status { display: inline-flex; gap: 6px; vertical-align: middle; }
+.actions { display: flex; gap: 8px; }
+.video {
+  width: 100%; max-height: 60vh; background: #000; border-radius: 4px;
+  display: block;
+}
+.video-placeholder {
+  width: 100%; height: 360px; background: #2c3e50; color: #fff;
+  display: flex; align-items: center; justify-content: center; border-radius: 4px;
+  font-size: 14px;
+}
+.meta-table {
+  background: #fff; border: 1px solid #ebeef5; border-radius: 4px; padding: 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.meta-table .row { display: flex; font-size: 13px; }
+.meta-table .k { color: #909399; width: 80px; flex-shrink: 0; }
+.meta-table .v { color: #303133; flex: 1; word-break: break-all; }
+.chunks-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.chunk-pill {
+  background: #f0f9ff; border: 1px solid #d0e8ff; padding: 2px 6px;
+  border-radius: 4px; font-family: 'Courier New', monospace; font-size: 11px;
+  color: #1890ff;
+}
+
+@media (max-width: 768px) {
+  .main { flex-direction: column; }
+  .sidebar { width: 100%; max-height: 30vh; border-right: none; border-bottom: 1px solid #ebeef5; }
+  .video { max-height: 40vh; }
+}
+</style>

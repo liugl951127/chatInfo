@@ -142,6 +142,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Picture, Menu } from '@element-plus/icons-vue'
 import { imApi } from '@/api/im'
+import { recordApi } from '@/api/record'
 import { useUserStore } from '@/stores/user'
 import { StompClient } from '@/utils/ws-client'
 import { ChatRecordSDK } from '@/utils/record-sdk'
@@ -340,12 +341,18 @@ async function tryRecorder() {
   }
   recorder = new ChatRecordSDK({
     apiBase: '/api/im/record',
+    api: recordApi,
     token: userStore.token,
     sessionId: session.value.id,
     userId: userStore.id,
+    nickname: userStore.nickname || userStore.username || '',
     target: '.customer-shell',
-    fps: 2,
+    fps: 4,                  // 4 fps 够顺, 不损耗过多带宽
     chunkDurationMs: 5000,
+    bitrate: 500_000,
+    watermark: true,
+    brandText: '本会话已开启录制 — 用于服务回溯',
+    ignoreSelector: '.no-record',
     onError: (e) => console.error('[record]', e),
     onState: (s) => console.log('[record] state =', s),
   })

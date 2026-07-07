@@ -31,7 +31,10 @@
       <aside v-if="!isMobile" class="side">
         <div class="side-header">
           <span>进行中 ({{ activeSessions.length }})</span>
-          <el-button link size="small" @click="refreshSessions">刷新</el-button>
+          <div>
+            <el-button link size="small" @click="refreshSessions">刷新</el-button>
+            <el-button link size="small" @click="goReplay" :disabled="!current">回溯</el-button>
+          </div>
         </div>
         <div class="session-list">
           <div v-for="s in activeSessions" :key="s.id"
@@ -360,6 +363,14 @@ function onTypingEvent(payload) {
   if (payload.sessionId !== current.value.id) return
   if (payload.userId === userStore.id) return
   peerTyping.value = payload.typing ? '客户' : ''
+}
+
+function goReplay() {
+  if (!current.value) {
+    ElMessage.warning('请先选择一个会话')
+    return
+  }
+  router.push('/replay/' + current.value.id)
 }
 
 async function refreshSessions() {

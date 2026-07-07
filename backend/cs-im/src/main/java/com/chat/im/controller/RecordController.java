@@ -1,12 +1,19 @@
 package com.chat.im.controller;
 
 import com.chat.common.api.ApiResponse;
+import com.chat.common.constant.CommonConstants;
+import com.chat.common.security.UserContext;
 import com.chat.im.entity.ChatRecord;
 import com.chat.im.entity.ChatRecordChunk;
 import com.chat.im.service.RecordService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -61,5 +68,47 @@ public class RecordController {
     @GetMapping("/{recordId}/chunks")
     public ApiResponse<List<ChatRecordChunk>> chunks(@PathVariable Long recordId) {
         return recordService.chunks(recordId);
+    }
+
+    @Operation(summary = "下载一个分片的二进制 (供回放用, 限本人/该会话坐席/管理员)")
+    @GetMapping("/chunk/{chunkId}/raw")
+    public ResponseEntity<Resource> downloadChunk(@PathVariable Long chunkId) throws IOException {
+        ChatRecordChunk c = recordService.chunkEntity(chunkId);
+        if (c == null) return ResponseEntity.notFound().build();
+
+        // 权限检查: 本人 或 该会话坐席 或 管理员
+        ChatRecord r = recordService.recordEntity(c.getRecordId());
+        Long uid = UserContext.userId();
+        String role = UserContext.role();
+        // 需要查 session 取 agent id
+        com.chat.im.entity.ChatSession s = recordService.sessionForAuth(r.getSessionId(), uid, role);
+        boolean owner = r.getUserId().equals(uid);
+        boolean admin = CommonConstants.ROLE_ADMIN.equalsIgnoreCase(role);
+        if (!(owner || (s != null) || admin)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        Resource res = recordService.chunkResource(chunkId);
+        if (res == null || !res.exists()) return ResponseEntity.notFound().build();
+        MediaType mt = MediaType.parseMediaType(
+            c.getMimeType() != null ? c.getMimeType() : "video/webm");
+        return ResponseEntity.ok()
+            .contentType(mt)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"chunk-" + c.getSequenceNo() + ".webm\"")
+            .header("X-Chunk-Sequence", String.valueOf(c.getSequenceNo()))
+            .header("X-Chunk-Duration-Ms", String.valueOf(c.getDurationMs()))
+            .body(res);
+    }
+
+    @Operation(summary = "查询某会话所有录像 (含元信息, 供回放页)")
+    @GetMapping("/session/{sessionId}/with-chunks")
+    public ApiResponse<Map<String, Object>> sessionRecordsWithChunks(@PathVariable Long sessionId) {
+        // 同样检查权限: 只允许该会话参与方 (客户/坐席) 查看
+        Long uid = UserContext.userId();
+        String role = UserContext.role();
+        // 查 session 验证一下
+        var s = recordService.sessionForAuth(sessionId, uid, role);
+        if (s == null) return ApiResponse.fail(403, "无权查看该会话录像");
+        return recordService.listBySessionWithChunks(sessionId);
     }
 }

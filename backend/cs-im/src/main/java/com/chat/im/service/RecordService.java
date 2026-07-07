@@ -2,7 +2,9 @@ package com.chat.im.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.chat.common.api.ApiResponse;
+import com.chat.common.constant.CommonConstants;
 import com.chat.common.security.UserContext;
+import com.chat.im.entity.ChatSession;
 import com.chat.im.entity.ChatAuditLog;
 import com.chat.im.entity.ChatRecord;
 import com.chat.im.entity.ChatRecordChunk;
@@ -44,6 +46,7 @@ public class RecordService {
     private final ChatRecordMapper recordMapper;
     private final ChatRecordChunkMapper chunkMapper;
     private final ChatAuditLogMapper auditLogMapper;
+    private final com.chat.im.mapper.ChatSessionMapper sessionMapper;
 
     @Value("${record.storage-path:/tmp/chat-records}")
     private String storagePath;
@@ -188,6 +191,61 @@ public class RecordService {
         QueryWrapper<ChatRecordChunk> q = new QueryWrapper<>();
         q.eq("record_id", recordId).orderByAsc("sequence_no");
         return ApiResponse.ok(chunkMapper.selectList(q));
+    }
+
+    /**
+     * 取一个分片的二进制 (供回放页用). 走的是 chat_auth 同样的 JWT 拦截,
+     * 不再加额外权限: 因为是 A 客户被录 -> 只有该客户 或 其会话的坐席 可看,
+     * 这层放在 controller 里检查.
+     */
+    public org.springframework.core.io.Resource chunkResource(Long chunkId) {
+        ChatRecordChunk c = chunkMapper.selectById(chunkId);
+        if (c == null) return null;
+        return new org.springframework.core.io.FileSystemResource(c.getStoragePath());
+    }
+
+    public ChatRecordChunk chunkEntity(Long chunkId) {
+        return chunkMapper.selectById(chunkId);
+    }
+
+    public ChatRecord recordEntity(Long recordId) {
+        return recordMapper.selectById(recordId);
+    }
+
+    /**
+     * 查 session 用于回放页权限检查. 返回该 session 如果用户有权看, 否则 null.
+     */
+    public com.chat.im.entity.ChatSession sessionForAuth(Long sessionId, Long uid, String role) {
+        ChatSession s = sessionMapper.selectById(sessionId);
+        if (s == null) return null;
+        if (CommonConstants.ROLE_ADMIN.equalsIgnoreCase(role)) return s;
+        if (s.getCustomerId() != null && s.getCustomerId().equals(uid)) return s;
+        if (s.getAgentId() != null && s.getAgentId().equals(uid) && CommonConstants.ROLE_AGENT.equalsIgnoreCase(role)) return s;
+        return null;
+    }
+
+    /**
+     * 列出会话的所有录像 + 每个录像的分片.
+     */
+    public ApiResponse<Map<String, Object>> listBySessionWithChunks(Long sessionId) {
+        QueryWrapper<ChatRecord> q = new QueryWrapper<>();
+        q.eq("session_id", sessionId).orderByDesc("started_at");
+        List<ChatRecord> records = recordMapper.selectList(q);
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("sessionId", sessionId);
+        result.put("records", records);
+        // 一次把分片都拉出来, 按 recordId 分组
+        Map<Long, List<ChatRecordChunk>> byRecord = new java.util.LinkedHashMap<>();
+        if (!records.isEmpty()) {
+            List<Long> ids = records.stream().map(ChatRecord::getId).toList();
+            QueryWrapper<ChatRecordChunk> qc = new QueryWrapper<>();
+            qc.in("record_id", ids).orderByAsc("record_id", "sequence_no");
+            for (ChatRecordChunk c : chunkMapper.selectList(qc)) {
+                byRecord.computeIfAbsent(c.getRecordId(), k -> new java.util.ArrayList<>()).add(c);
+            }
+        }
+        result.put("chunks", byRecord);
+        return ApiResponse.ok(result);
     }
 
     private void audit(Long uid, String role, String action, String target, String detail) {

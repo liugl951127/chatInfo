@@ -5,7 +5,8 @@ const routes = [
   { path: '/', redirect: '/login' },
   { path: '/login', component: () => import('@/views/Login.vue'), meta: { guest: true } },
   { path: '/customer', component: () => import('@/views/Customer.vue'), meta: { auth: true, role: 'CUSTOMER' } },
-  { path: '/agent', component: () => import('@/views/Agent.vue'), meta: { auth: true, role: 'AGENT' } }
+  { path: '/agent', component: () => import('@/views/Agent.vue'), meta: { auth: true, role: 'AGENT' } },
+  { path: '/replay/:sessionId', component: () => import('@/views/Replay.vue'), meta: { auth: true } }
 ]
 
 const router = createRouter({

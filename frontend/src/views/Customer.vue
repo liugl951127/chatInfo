@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-page">
+  <div class="chat-page customer-shell">
     <header class="topbar">
       <div class="brand-area">
         <el-button v-if="isMobile" link class="menu-btn" @click="drawerVisible = true">
@@ -139,11 +139,12 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Picture, Menu } from '@element-plus/icons-vue'
 import { imApi } from '@/api/im'
 import { useUserStore } from '@/stores/user'
 import { StompClient } from '@/utils/ws-client'
+import { ChatRecordSDK } from '@/utils/record-sdk'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -176,6 +177,7 @@ const previewImageUrl = ref(null)
 let stomp = null
 let typingTimer = null
 let resizeHandler = null
+let recorder = null
 
 const statusText = computed(() => ({
   WAITING: '等待客服接入...',
@@ -220,6 +222,10 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stomp?.disconnect()
+  // 主动结束录制 (正常结束: USER_STOP; 其他会话关闭原因是 NORMAL)
+  if (recorder && recorder.recordId) {
+    recorder.stop('USER_STOP').catch(() => {})
+  }
 })
 
 onUnmounted(() => {
@@ -298,9 +304,52 @@ async function startSession() {
       createdAt: new Date().toISOString()
     }, true)
     scrollToBottom()
+    // 会话创建成功后, 询问是否同意录制 (合规要求) → 启动 SDK
+    if (!recorder || !recorder.recordId) {
+      tryRecorder().catch(() => {})
+    }
   } finally {
     creating.value = false
   }
+}
+
+/**
+ * 询问用户同意录制并启动 SDK. 调用方负责 catch 异常.
+ * 同意框由 ElMessageBox 弹出, 包含 "服务回溯/合规要求" 等说明.
+ */
+async function tryRecorder() {
+  if (!session.value) return
+  let ok = false
+  try {
+    await ElMessageBox.confirm(
+      '为了服务质量与合规要求, 我们会对本次会话页面进行视频录制 (包括聊天内容和页面操作), 仅供内部审计/质量回溯使用。',
+      '开始会话前需告知',
+      {
+        confirmButtonText: '同意并开始',
+        cancelButtonText: '不同意 (将不能发起会话)',
+        type: 'warning',
+      }
+    )
+    ok = true
+  } catch {
+    ok = false  // 用户取消
+  }
+  if (!ok) {
+    ElMessage.warning('您未同意录制, 为合规要求, 建议退出当前会话')
+    return
+  }
+  recorder = new ChatRecordSDK({
+    apiBase: '/api/im/record',
+    token: userStore.token,
+    sessionId: session.value.id,
+    userId: userStore.id,
+    target: '.customer-shell',
+    fps: 2,
+    chunkDurationMs: 5000,
+    onError: (e) => console.error('[record]', e),
+    onState: (s) => console.log('[record] state =', s),
+  })
+  await recorder.start()
 }
 
 async function loadHistory() {

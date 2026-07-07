@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: cs-im
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/online_chat?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
@@ -35,3 +39,6 @@ logging:
   level:
     com.chat: DEBUG
     org.springframework.web.socket: INFO
+# 录像上传大小限制 (视频分片较大, 调高)
+record:
+  storage-path: /tmp/chat-records

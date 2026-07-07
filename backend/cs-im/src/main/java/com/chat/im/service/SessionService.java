@@ -1,6 +1,7 @@
 package com.chat.im.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.chat.common.api.ApiResponse;
 import com.chat.common.constant.CommonConstants;
 import com.chat.common.security.UserContext;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Optional;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -277,6 +279,133 @@ public class SessionService {
         redis.delete(CommonConstants.REDIS_CUSTOMER_SESSION + s.getCustomerId());
         auditLogService.log(uid, "CLOSE", String.valueOf(sessionId), null);
         return ApiResponse.ok();
+    }
+
+    /**
+     * 客户主动退出会话.
+     * 与 close 的区别:
+     *  - 仅客户可调
+     *  - 推一条系统消息给坐席 ("客户已退出")
+     *  - 推一个 CLOSE 事件给坐席 (前端根据事件刷会话列表)
+     */
+    @Transactional
+    public ApiResponse<Void> customerExit(Long sessionId, String reason) {
+        Long uid = UserContext.userId();
+        if (!CommonConstants.ROLE_CUSTOMER.equalsIgnoreCase(UserContext.role())) {
+            return ApiResponse.fail(403, "仅客户可调用");
+        }
+        ChatSession s = sessionMapper.selectById(sessionId);
+        if (s == null) return ApiResponse.fail(404, "会话不存在");
+        if (!uid.equals(s.getCustomerId())) return ApiResponse.fail(403, "无权操作");
+        if (CommonConstants.SESSION_CLOSED.equals(s.getStatus())) {
+            return ApiResponse.ok();  // 幂等: 重复点击不报错
+        }
+
+        s.setStatus(CommonConstants.SESSION_CLOSED);
+        s.setClosedAt(LocalDateTime.now());
+        s.setLastMessage("客户主动退出");
+        sessionMapper.updateById(s);
+
+        if (s.getAgentId() != null) {
+            redis.delete(CommonConstants.REDIS_AGENT_SESSION + s.getAgentId());
+        }
+        redis.delete(CommonConstants.REDIS_CUSTOMER_SESSION + s.getCustomerId());
+
+        // 推系统消息
+        String text = reason != null && !reason.isEmpty()
+            ? "客户已主动退出 (" + reason + ")"
+            : "客户已主动退出会话";
+        messageService.sendSystemMessage(sessionId, text);
+        // 推事件 (坐席侧 Client.OnEvent 收到 type=CLOSED, 刷新列表)
+        wsPushService.notifySessionClosed(sessionId, s.getCustomerId(), s.getAgentId(), "CUSTOMER_EXIT");
+
+        auditLogService.log(uid, "CUSTOMER_EXIT", String.valueOf(sessionId),
+            "agentId=" + s.getAgentId() + " reason=" + reason);
+        return ApiResponse.ok();
+    }
+
+    /**
+     * 客户申请转接其他坐席 (会保留会话与聊天记录, 只是换客服).
+     *  1) 如同技能尚有其他可分配坐席 -> 选一个 (优先不同于当前坐席)
+     *  2) 如无其他坐席, 且不要求换技能 -> 转成 WAITING 重新走分配
+     *  3) 都失败则报错
+     */
+    @Transactional
+    public ApiResponse<ChatSession> customerRequestTransfer(Long sessionId, String preferredSkill) {
+        Long uid = UserContext.userId();
+        if (!CommonConstants.ROLE_CUSTOMER.equalsIgnoreCase(UserContext.role())) {
+            return ApiResponse.fail(403, "仅客户可调用");
+        }
+        ChatSession s = sessionMapper.selectById(sessionId);
+        if (s == null) return ApiResponse.fail(404, "会话不存在");
+        if (!uid.equals(s.getCustomerId())) return ApiResponse.fail(403, "无权操作");
+        if (CommonConstants.SESSION_CLOSED.equals(s.getStatus())) {
+            return ApiResponse.fail(409, "会话已关闭, 不能转接");
+        }
+
+        String skill = preferredSkill != null && !preferredSkill.isEmpty()
+            ? preferredSkill
+            : s.getSkillTag();
+        Long currentAgentId = s.getAgentId();
+
+        // 1) 查可分配的坐席 (不含当前 + 同一技能优先).
+        // Agent.skillTags 是 JSON 数组字符串 (e.g. '["billing","refund"]'), 用 LIKE 包含匹配.
+        QueryWrapper<Agent> q = new QueryWrapper<>();
+        q.eq("role", "AGENT").eq("status", 1);
+        if (skill != null && !skill.isEmpty()) {
+            q.and(w -> w.like("skill_tags", "\"" + skill + "\"").or().like("skill_tags", skill));
+        }
+        q.orderByAsc("id");
+        List<Agent> candidates = userMapper.selectList(q);
+        Long newAgentId = null;
+        for (Agent a : candidates) {
+            if (a.getId().equals(currentAgentId)) continue;
+            newAgentId = a.getId();
+            break;
+        }
+        // 2) 没有同技能, 查任意可分配
+        if (newAgentId == null) {
+            QueryWrapper<Agent> q2 = new QueryWrapper<>();
+            q2.eq("role", "AGENT").eq("status", 1).orderByAsc("id");
+            List<Agent> allAssignable = userMapper.selectList(q2);
+            for (Agent a : allAssignable) {
+                if (a.getId().equals(currentAgentId)) continue;
+                newAgentId = a.getId();
+                break;
+            }
+        }
+        if (newAgentId == null) {
+            return ApiResponse.fail(503, "暂无可转接的坐席, 请稍后再试");
+        }
+
+        // 3) 更新会话
+        Long fromAgentId = currentAgentId;
+        s.setAgentId(newAgentId);
+        s.setTransferredFromAgentId(fromAgentId);
+        s.setTransferReason("客户申请转接");
+        s.setLastMessage("会话已转接");
+        sessionMapper.updateById(s);
+
+        // Redis 映射
+        if (fromAgentId != null) {
+            redis.delete(CommonConstants.REDIS_AGENT_SESSION + fromAgentId);
+        }
+        assignAgent(sessionId, newAgentId);
+
+        // 4) 推系统消息 + 事件
+        Agent newAgent = userMapper.selectById(newAgentId);
+        String newAgentName = newAgent != null ? newAgent.getNickname() : "#" + newAgentId;
+        String oldAgentName = fromAgentId != null
+            ? (Optional.ofNullable(userMapper.selectById(fromAgentId)).map(Agent::getNickname).orElse("#" + fromAgentId))
+            : null;
+        String msg = "客户申请转接, 客服已更换为 " + newAgentName +
+            (oldAgentName != null ? " (原客服 " + oldAgentName + ")" : "");
+        messageService.sendSystemMessage(sessionId, msg);
+        wsPushService.notifySessionTransferred(sessionId, fromAgentId, newAgentId, "客户申请转接");
+
+        auditLogService.log(uid, "CUSTOMER_TRANSFER", String.valueOf(sessionId),
+            "from=" + fromAgentId + " to=" + newAgentId + " skill=" + skill);
+        return ApiResponse.ok(s);
     }
 
     private String generateSessionNo() {

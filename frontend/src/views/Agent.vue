@@ -348,6 +348,18 @@ function onEvent(payload) {
     if (current.value && current.value.id === payload.sessionId) {
       current.value = { ...current.value, peerOnline: payload.online, lastSeen: payload.ts }
     }
+  } else if (payload.type === 'CLOSED') {
+    // 客户退出/会话超时 → 从列表中移除该会话, 弹提示
+    const closedId = payload.sessionId
+    sessions.value = sessions.value.filter(s => s.id !== closedId)
+    if (current.value && current.value.id === closedId) {
+      ElMessage.warning(payload.reason === 'CUSTOMER_EXIT' ? '客户已主动退出该会话' : '会话已被关闭')
+      current.value = null
+      messages.value = []
+    }
+    unreadMap.value = { ...unreadMap.value }
+    delete unreadMap.value[closedId]
+    refreshSessions()
   }
 }
 

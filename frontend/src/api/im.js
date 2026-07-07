@@ -11,6 +11,9 @@ export const imApi = {
   mySessions:    () => http.get('/api/im/session/mine'),
   waitingList:   () => http.get('/api/im/session/waiting'),
   closeSession:  (id) => http.post(`/api/im/session/${id}/close`),
+  customerExit: (id, reason) => http.post(`/api/im/session/${id}/exit`, null, { params: { reason } }),
+  requestTransfer: (id, preferredSkill) =>
+    http.post(`/api/im/session/${id}/request-transfer`, null, { params: { preferredSkill } }),
   unread:        (sessionId) => http.get(`/api/im/session/${sessionId}/unread`),
 
   // 启动

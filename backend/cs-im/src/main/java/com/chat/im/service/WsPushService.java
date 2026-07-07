@@ -104,6 +104,25 @@ public class WsPushService implements MessageListener {
         // (客户 id 在 controller 已知, 暂不在此查)
     }
 
+    /**
+     * 会话被关闭事件 (客户退出/超时等). 推给会话双方:
+     *  - 坐席收到后刷新列表 (该会话已不在进行中)
+     *  - 客户收到后清空本地 session.value + 退出录制
+     */
+    public void notifySessionClosed(Long sessionId, Long customerId, Long agentId, String reason) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "CLOSED");
+        payload.put("sessionId", sessionId);
+        payload.put("reason", reason);
+        payload.put("ts", System.currentTimeMillis());
+        if (customerId != null) {
+            messagingTemplate.convertAndSendToUser(String.valueOf(customerId), "/queue/events", payload);
+        }
+        if (agentId != null) {
+            messagingTemplate.convertAndSendToUser(String.valueOf(agentId), "/queue/events", payload);
+        }
+    }
+
     /** 客户/坐席 输入状态广播 */
     public void notifyTyping(Long sessionId, Long userId, String role, boolean typing) {
         Map<String, Object> payload = new HashMap<>();

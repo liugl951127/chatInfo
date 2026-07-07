@@ -26,9 +26,17 @@
           <p>技能: <el-tag size="small">{{ session.skillTag || '通用' }}</el-tag></p>
           <p>状态: <el-tag size="small" :type="statusTagType">{{ statusText }}</el-tag></p>
           <p v-if="session.agentId">客服: #{{ session.agentId }}</p>
-          <el-button size="small" type="danger" plain class="side-btn" @click="closeSession">
-            结束会话
-          </el-button>
+          <div class="session-actions">
+            <el-button size="small" type="warning" plain :disabled="exiting || session.status === 'CLOSED'" @click="requestTransfer">
+              转接客服
+            </el-button>
+            <el-button size="small" type="danger" plain :disabled="exiting || session.status === 'CLOSED'" @click="customerExit">
+              主动退出
+            </el-button>
+            <el-button size="small" plain :disabled="exiting || session.status === 'CLOSED'" @click="closeSession">
+              结束会话
+            </el-button>
+          </div>
         </div>
       </aside>
 
@@ -155,6 +163,7 @@ const messages = ref([])
 const draft = ref('')
 const connected = ref(false)
 const reconnecting = ref(false)
+const exiting = ref(false)
 const messageListRef = ref(null)
 const fileInputRef = ref(null)
 const readMap = ref({})
@@ -272,6 +281,13 @@ function onIncomingMessage(msg) {
   }
 }
 
+function onTypingEvent(payload) {
+  if (!payload || !session.value) return
+  if (payload.sessionId !== session.value.id) return
+  if (payload.userId === userStore.id) return
+  peerTyping.value = payload.typing ? '客服' : ''
+}
+
 function onEvent(payload) {
   if (!payload) return
   if (payload.type === 'READ' && payload.messageId) {
@@ -285,7 +301,26 @@ function onEvent(payload) {
   } else if (payload.type === 'TRANSFERRED') {
     ElMessage.info('会话已转接给其他客服')
     drawerVisible.value = false
+    refreshSessionFromServer()
+  } else if (payload.type === 'CLOSED') {
+    if (session.value && payload.sessionId === session.value.id && session.value.status !== 'CLOSED') {
+      session.value = { ...session.value, status: 'CLOSED' }
+      stopRecorder('SESSION_CLOSED').catch(() => {})
+      ElMessage.info(payload.reason === 'CUSTOMER_EXIT' ? '您已退出会话' : '会话已结束')
+    }
+  } else if (payload.type === 'PRESENCE') {
+    if (session.value && payload.sessionId === session.value.id) {
+      session.value = { ...session.value, peerOnline: payload.online }
+    }
   }
+}
+
+async function refreshSessionFromServer() {
+  try {
+    const list = await imApi.mySessions()
+    const fresh = list.find(s => s.id === session.value?.id)
+    if (fresh) session.value = fresh
+  } catch {}
 }
 
 function previewImage(url) {
@@ -449,6 +484,73 @@ async function closeSession() {
   } catch {}
 }
 
+/**
+ * 客户主动退出会话 (区别于 closeSession):
+ *  - 推系统消息 '客户已主动退出' 给坐席
+ *  - 不可评分 (避免客户退出后系统弹评分, 干扰体验)
+ *  - 触发后服务端还会推 CLOSED 事件, onEvent 中清理本地状态
+ */
+async function customerExit() {
+  if (!session.value || exiting.value) return
+  try {
+    await ElMessageBox.confirm(
+      '退出会话后本次聊天将结束, 且无法继续. 确定要主动退出吗?',
+      '主动退出',
+      { confirmButtonText: '退出', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return  // 用户取消
+  }
+  exiting.value = true
+  try {
+    await imApi.customerExit(session.value.id)
+    ElMessage.success('已退出本次会话')
+    // 服务端还会推 CLOSED 事件; 这里也本地落状态, 避免依赖推送
+    session.value = { ...session.value, status: 'CLOSED' }
+    await stopRecorder('USER_STOP')
+    drawerVisible.value = false
+  } catch (e) {
+    ElMessage.error('退出失败: ' + (e?.message || '未知错误'))
+  } finally {
+    exiting.value = false
+  }
+}
+
+/**
+ * 客户申请转接其他坐席. 会话记录保留, agent_id 换成其他可用坐席.
+ */
+async function requestTransfer() {
+  if (!session.value || exiting.value) return
+  try {
+    const { value: reason } = await ElMessageBox.prompt(
+      '告诉我们需要转接的原因 (可选), 我们会为您换一个更合适的客服.',
+      '申请转接客服',
+      { confirmButtonText: '提交申请', cancelButtonText: '取消', inputPlaceholder: '例如: 这个问题A客服处理不了' }
+    )
+    await imApi.requestTransfer(session.value.id, session.value.skillTag)
+    ElMessage.success('已为您申请转接, 请稍等')
+    drawerVisible.value = false
+    // 不需要清 session, agentId 会被推送的 TRANSFERRED 事件更新
+  } catch (e) {
+    if (e === 'cancel' || e?.message === 'cancel') return  // 用户取消 prompt
+    ElMessage.error('申请转接失败: ' + (e?.message || '未知错误'))
+  }
+}
+
+/**
+ * 停止录制 (处理成功或异常退出).
+ */
+async function stopRecorder(reason = 'NORMAL') {
+  if (!recorder || !recorder.recordId) return
+  try {
+    await recorder.stop(reason)
+  } catch (e) {
+    console.warn('[record] stop failed', e)
+  } finally {
+    recorder = null
+  }
+}
+
 async function submitRating() {
   if (!pendingRatingSessionId.value) return
   ratingSubmitting.value = true
@@ -510,6 +612,8 @@ function logout() {
 .session-info { margin-top: 16px; font-size: 13px; color: #606266; line-height: 1.8; }
 .session-info code { font-family: 'Courier New', monospace; color: #409eff; }
 .side-btn { width: 100%; margin-top: 8px; }
+.session-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.session-actions .el-button { width: 100%; }
 
 .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #f5f7fa; }
 .message-list { flex: 1; overflow-y: auto; padding: 16px 20px; }

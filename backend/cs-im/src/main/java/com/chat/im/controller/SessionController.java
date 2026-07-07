@@ -76,6 +76,20 @@ public class SessionController {
         return sessionService.close(sessionId);
     }
 
+    @Operation(summary = "客户主动退出会话 (幂等)")
+    @PostMapping("/{sessionId}/exit")
+    public ApiResponse<Void> exit(@PathVariable Long sessionId,
+                                  @RequestParam(required = false) String reason) {
+        return sessionService.customerExit(sessionId, reason);
+    }
+
+    @Operation(summary = "客户申请转接其他坐席")
+    @PostMapping("/{sessionId}/request-transfer")
+    public ApiResponse<ChatSession> requestTransfer(@PathVariable Long sessionId,
+                                                    @RequestParam(required = false) String preferredSkill) {
+        return sessionService.customerRequestTransfer(sessionId, preferredSkill);
+    }
+
     @Operation(summary = "启动状态 (在线 + 离线数 + 未读总数)")
     @GetMapping("/bootstrap")
     public ApiResponse<Map<String, Object>> bootstrap() {

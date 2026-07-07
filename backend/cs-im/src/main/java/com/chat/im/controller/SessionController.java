@@ -1,12 +1,14 @@
 package com.chat.im.controller;
 
 import com.chat.common.api.ApiResponse;
+import com.chat.common.dto.MessageDTO;
 import com.chat.common.security.UserContext;
 import com.chat.im.entity.ChatSession;
+import com.chat.im.service.AgentStatusService;
 import com.chat.im.service.OfflineMessageStore;
-import com.chat.im.service.SessionService;
 import com.chat.im.service.PresenceService;
-import com.chat.common.dto.MessageDTO;
+import com.chat.im.service.SessionService;
+import com.chat.im.service.UnreadCounterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,20 +27,38 @@ public class SessionController {
     private final SessionService sessionService;
     private final PresenceService presenceService;
     private final OfflineMessageStore offlineStore;
+    private final UnreadCounterService unreadCounterService;
+    private final AgentStatusService agentStatusService;
 
-    @Operation(summary = "客户创建会话")
+    @Operation(summary = "客户创建会话 (可指定技能)")
     @PostMapping("/create")
-    public ApiResponse<ChatSession> create() {
-        return sessionService.create();
+    public ApiResponse<ChatSession> create(@RequestParam(required = false) String skill) {
+        return sessionService.create(skill);
     }
 
-    @Operation(summary = "坐席领取一个等待会话")
+    @Operation(summary = "坐席抢单")
     @PostMapping("/claim")
     public ApiResponse<ChatSession> claim() {
         return sessionService.claim();
     }
 
-    @Operation(summary = "查看我的会话列表")
+    @Operation(summary = "会话转接")
+    @PostMapping("/{sessionId}/transfer")
+    public ApiResponse<ChatSession> transfer(@PathVariable Long sessionId,
+                                              @RequestParam Long toAgentId,
+                                              @RequestParam(required = false) String reason) {
+        return sessionService.transfer(sessionId, toAgentId, reason);
+    }
+
+    @Operation(summary = "CSAT 评分")
+    @PostMapping("/{sessionId}/rate")
+    public ApiResponse<Void> rate(@PathVariable Long sessionId,
+                                  @RequestParam Integer rating,
+                                  @RequestParam(required = false) String comment) {
+        return sessionService.rate(sessionId, rating, comment);
+    }
+
+    @Operation(summary = "我的会话列表")
     @GetMapping("/mine")
     public ApiResponse<List<ChatSession>> mine() {
         return sessionService.mySessions();
@@ -56,7 +76,7 @@ public class SessionController {
         return sessionService.close(sessionId);
     }
 
-    @Operation(summary = "启动时拉取状态 (在线 + 离线消息)")
+    @Operation(summary = "启动状态 (在线 + 离线数 + 未读总数)")
     @GetMapping("/bootstrap")
     public ApiResponse<Map<String, Object>> bootstrap() {
         Map<String, Object> m = new HashMap<>();
@@ -71,5 +91,24 @@ public class SessionController {
     @GetMapping("/offline/drain")
     public ApiResponse<List<MessageDTO>> drain() {
         return ApiResponse.ok(offlineStore.drain(UserContext.userId()));
+    }
+
+    @Operation(summary = "会话未读数")
+    @GetMapping("/{sessionId}/unread")
+    public ApiResponse<Long> unread(@PathVariable Long sessionId) {
+        return ApiResponse.ok(unreadCounterService.get(UserContext.userId(), sessionId));
+    }
+
+    @Operation(summary = "坐席设置状态")
+    @PostMapping("/agent/status")
+    public ApiResponse<Void> setAgentStatus(@RequestParam String status) {
+        agentStatusService.setStatus(UserContext.userId(), status);
+        return ApiResponse.ok();
+    }
+
+    @Operation(summary = "获取我的坐席状态")
+    @GetMapping("/agent/status")
+    public ApiResponse<Map<String, String>> getAgentStatus() {
+        return ApiResponse.ok(Map.of("status", agentStatusService.getStatus(UserContext.userId())));
     }
 }

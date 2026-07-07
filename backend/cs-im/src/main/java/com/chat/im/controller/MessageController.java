@@ -10,22 +10,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
 
-/**
- * 消息相关:
- * <ul>
- *   <li>STOMP: 客户端发送 /app/send/{sessionId}, 服务端处理后回写 /user/queue/messages</li>
- *   <li>REST:  GET /api/im/session/{sessionId}/messages?limit=50 拉历史</li>
- * </ul>
- */
 @Tag(name = "消息")
 @RestController
 @RequestMapping("/api/im/session")
@@ -34,14 +23,8 @@ public class MessageController {
 
     private final MessageService messageService;
 
-    /**
-     * STOMP 入口: 客户端发送消息。
-     * <p>
-     * 通过 SimpMessageHeaderAccessor 拿到由 StompAuthChannelInterceptor 设置的 Principal。
-     */
     @MessageMapping("/send/{sessionId}")
-    public void send(@DestinationVariable Long sessionId,
-                     MessageDTO msg,
+    public void send(@DestinationVariable Long sessionId, MessageDTO msg,
                      SimpMessageHeaderAccessor accessor) {
         Principal p = accessor.getUser();
         if (!(p instanceof StompPrincipal sp)) {
@@ -50,10 +33,37 @@ public class MessageController {
         messageService.handleIncoming(sessionId, msg, sp.userId(), sp.role());
     }
 
+    /** STOMP 端: 客户端发 typing 事件 */
+    @MessageMapping("/typing/{sessionId}")
+    public void typing(@DestinationVariable Long sessionId, SimpMessageHeaderAccessor accessor,
+                       java.util.Map<String, Object> payload) {
+        Principal p = accessor.getUser();
+        if (!(p instanceof StompPrincipal sp)) return;
+        messageService.typing(sessionId, Boolean.TRUE.equals(payload.get("typing")));
+    }
+
     @Operation(summary = "拉历史消息")
     @GetMapping("/{sessionId}/messages")
     public ApiResponse<List<MessageDTO>> history(@PathVariable Long sessionId,
                                                  @RequestParam(defaultValue = "50") Integer limit) {
         return messageService.history(sessionId, limit);
+    }
+
+    @Operation(summary = "撤回消息 (2 分钟内)")
+    @PostMapping("/message/{messageId}/recall")
+    public ApiResponse<Void> recall(@PathVariable Long messageId) {
+        return messageService.recall(messageId);
+    }
+
+    @Operation(summary = "标记单条消息已读")
+    @PostMapping("/message/{messageId}/read")
+    public ApiResponse<Void> markRead(@PathVariable Long messageId) {
+        return messageService.markRead(messageId);
+    }
+
+    @Operation(summary = "标记整个会话已读")
+    @PostMapping("/{sessionId}/read-all")
+    public ApiResponse<Void> markSessionRead(@PathVariable Long sessionId) {
+        return messageService.markSessionRead(sessionId);
     }
 }

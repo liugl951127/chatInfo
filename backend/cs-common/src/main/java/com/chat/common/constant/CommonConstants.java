@@ -10,6 +10,7 @@ public final class CommonConstants {
     /** 用户角色 */
     public static final String ROLE_CUSTOMER = "CUSTOMER";
     public static final String ROLE_AGENT    = "AGENT";
+    public static final String ROLE_ADMIN    = "ADMIN";
     public static final String ROLE_SYSTEM   = "SYSTEM";
 
     /** 会话状态 */
@@ -22,6 +23,12 @@ public final class CommonConstants {
     public static final String MSG_IMAGE  = "IMAGE";
     public static final String MSG_FILE   = "FILE";
     public static final String MSG_SYSTEM = "SYSTEM";
+    public static final String MSG_RECALL = "RECALL";
+
+    /** 坐席状态 */
+    public static final String AGENT_ONLINE = "ONLINE";
+    public static final String AGENT_BUSY   = "BUSY";
+    public static final String AGENT_AWAY   = "AWAY";
 
     /** JWT Header */
     public static final String AUTH_HEADER = "Authorization";
@@ -40,4 +47,6 @@ public final class CommonConstants {
     public static final String REDIS_CUSTOMER_SESSION = "chat:customer:session:";      // 客户当前会话 customerId -> sessionId
     public static final String REDIS_WS_PUSH_CHANNEL = "chat:ws:push";                // 跨实例 WS 推送通道前缀
     public static final String REDIS_OFFLINE_MSG     = "chat:offline:";                // 离线消息 list 前缀
+    public static final String REDIS_AGENT_STATUS    = "chat:agent:status:";           // 坐席状态 hash agentId -> ONLINE/BUSY/AWAY
+    public static final String REDIS_UNREAD          = "chat:unread:";                 // 未读计数 prefix userId:sessionId -> count
 }

@@ -8,18 +8,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("chat_message")
-public class ChatMessage {
+@TableName("canned_response")
+public class CannedResponse {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private Long sessionId;
-    private Long senderId;
-    /** CUSTOMER / AGENT / SYSTEM */
-    private String senderRole;
-    /** TEXT / IMAGE / FILE / SYSTEM / RECALL */
-    private String msgType;
+    private String skillTag;
+    private String title;
     private String content;
-    /** 0=正常 1=已撤回 */
-    private Integer recalled;
+    private Long createdBy;
     private LocalDateTime createdAt;
 }

@@ -15,8 +15,16 @@ public class ChatSession {
     private String sessionNo;
     private Long customerId;
     private Long agentId;
+    private String skillTag;
+    /** WAITING / ACTIVE / CLOSED */
     private String status;
+    private Long transferredFromAgentId;
+    private String transferReason;
     private String lastMessage;
+    /** CSAT 1-5 */
+    private Integer rating;
+    private String ratingComment;
+    private LocalDateTime ratedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime closedAt;

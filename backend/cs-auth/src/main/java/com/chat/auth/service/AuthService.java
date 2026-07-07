@@ -43,6 +43,7 @@ public class AuthService {
             return ApiResponse.fail(401, "密码错误");
         }
         String token = JwtUtil.issue(jwtSecret, u.getId(), u.getUsername(), u.getRole(), u.getNickname(), ttlMs);
+        log.info("[audit] LOGIN user={} ({})", u.getUsername(), u.getId());
         return ApiResponse.ok(new LoginVO(u.getId(), u.getUsername(), u.getNickname(), u.getRole(), token, ttlMs / 1000));
     }
 

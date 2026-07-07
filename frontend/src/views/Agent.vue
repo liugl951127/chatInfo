@@ -242,18 +242,20 @@ function connectWs() {
   stomp = new StompClient({
     token: userStore.token,
     onConnected: () => {
+      // 只更新 UI 状态 (首次连接触发, 重连不触发)
       connected.value = true
       reconnecting.value = false
-      stomp.subscribe('/user/queue/messages', onIncomingMessage)
-      stomp.subscribe('/user/queue/events', onEvent)
-      stomp.subscribe('/topic/sessions/new', onNewSession)
-      if (current.value) {
-        stomp.subscribe('/topic/typing/' + current.value.id, onTypingEvent)
-      }
     },
     onDisconnected: () => { connected.value = false; reconnecting.value = true },
     onError: () => { connected.value = false; reconnecting.value = true }
   })
+  // 订阅 (幂等) — 必须在 connect() 之前调, 重连时会自动重订
+  stomp.subscribe('/user/queue/messages', onIncomingMessage)
+  stomp.subscribe('/user/queue/events', onEvent)
+  stomp.subscribe('/topic/sessions/new', onNewSession)
+  if (current.value) {
+    stomp.subscribe('/topic/typing/' + current.value.id, onTypingEvent)
+  }
   stomp.connect('/ws/agent')
 }
 
@@ -333,13 +335,17 @@ async function claimOne() {
 }
 
 async function select(s) {
+  // 先退订上一个会话的 typing 频道 (如果有)
+  if (current.value && current.value.id !== s.id) {
+    stomp?.unsubscribe('/topic/typing/' + current.value.id, onTypingEvent)
+  }
   current.value = s
   messages.value = []
   try {
     const list = await imApi.history(s.id, 100)
     messages.value = list
     await nextTick(); scrollToBottom()
-    // 订阅 typing 事件
+    // 订阅新会话的 typing 事件 (幂等)
     stomp?.subscribe('/topic/typing/' + s.id, onTypingEvent)
     // 标已读
     await imApi.readAll(s.id)

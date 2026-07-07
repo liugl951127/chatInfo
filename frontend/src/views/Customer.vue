@@ -186,11 +186,9 @@ function connectWs() {
   stomp = new StompClient({
     token: userStore.token,
     onConnected: () => {
+      // 只更新 UI 状态 (首次连接触发, 重连不触发)
       connected.value = true
       reconnecting.value = false
-      stomp.subscribe('/user/queue/messages', onIncomingMessage)
-      stomp.subscribe('/user/queue/events', onEvent)
-      stomp.subscribe('/topic/typing/' + (session.value?.id || 0), onTypingEvent)
     },
     onDisconnected: () => {
       connected.value = false
@@ -198,6 +196,10 @@ function connectWs() {
     },
     onError: () => { connected.value = false; reconnecting.value = true }
   })
+  // 订阅 (幂等) — 必须在 connect() 之前调, 这样重连时会自动重订
+  stomp.subscribe('/user/queue/messages', onIncomingMessage)
+  stomp.subscribe('/user/queue/events', onEvent)
+  stomp.subscribe('/topic/typing/' + (session.value?.id || 0), onTypingEvent)
   stomp.connect('/ws/customer')
 }
 

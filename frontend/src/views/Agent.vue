@@ -292,6 +292,14 @@ function connectWs() {
   stomp = new StompClient({
     token: userStore.token,
     onConnected: () => { connected.value = true; reconnecting.value = false },
+    onReconnected: () => {
+      // 重连成功 — 刷新会话列表 + 当前会话未读数, 兔底断网期间丢失的消息
+      console.log('[stomp] 重连成功, 刷新会话状态')
+      refreshSessions()
+      if (current.value) {
+        imApi.readAll(current.value.id).catch(() => {})
+      }
+    },
     onDisconnected: () => { connected.value = false; reconnecting.value = true },
     onError: () => { connected.value = false; reconnecting.value = true }
   })

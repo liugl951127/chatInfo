@@ -233,15 +233,27 @@ function connectWs() {
   stomp = new StompClient({
     token: userStore.token,
     onConnected: () => {
+      // 只更新 UI 状态 (首次连接触发, 重连不触发)
       connected.value = true
       reconnecting.value = false
+    },
+    onReconnected: () => {
+      // 重连成功后拉一次历史, 兜底断网期间可能丢失的推送消息
+      console.log('[stomp] 重连成功, 拉历史补漏')
+      if (session.value) {
+        loadHistory()
+      }
     },
     onDisconnected: () => { connected.value = false; reconnecting.value = true },
     onError: () => { connected.value = false; reconnecting.value = true }
   })
+  // 订阅 (幂等) — 必须在 connect() 之前调, 这样重连时会自动重订
+  const typingDest = session.value?.id
+    ? '/topic/typing/' + session.value.id
+    : '/topic/typing/0'
   stomp.subscribe('/user/queue/messages', onIncomingMessage)
   stomp.subscribe('/user/queue/events', onEvent)
-  stomp.subscribe('/topic/typing/' + (session.value?.id || 0), onTypingEvent)
+  stomp.subscribe(typingDest, onTypingEvent)
   stomp.connect('/ws/customer')
 }
 

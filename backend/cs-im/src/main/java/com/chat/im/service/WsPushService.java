@@ -2,10 +2,13 @@ package com.chat.im.service;
 
 import com.chat.common.constant.CommonConstants;
 import com.chat.common.dto.MessageDTO;
+import com.chat.im.entity.ChatSession;
+import com.chat.im.event.PresenceChangedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,6 +34,7 @@ public class WsPushService implements MessageListener {
     private final StringRedisTemplate redis;
     private final RedisMessageListenerContainer listenerContainer;
     private final ObjectMapper mapper;
+    private final PresenceService presenceService;
 
     @PostConstruct
     public void init() {
@@ -61,8 +66,17 @@ public class WsPushService implements MessageListener {
     }
 
     private Object parse(String json) {
-        try { return mapper.readValue(json, MessageDTO.class); }
-        catch (Exception e) { return json; }
+        // 先尝试按 Map 反序列化 (覆盖 PRESENCE / READ / RECALL 等事件型 payload, 它们都是 Map)
+        try {
+            java.util.Map<?, ?> m = mapper.readValue(json, java.util.Map.class);
+            // 如果是聊天消息 (有 msgType 字段), 转成 MessageDTO 保持原有可读性
+            if (m != null && m.containsKey("msgType")) {
+                return mapper.convertValue(m, com.chat.common.dto.MessageDTO.class);
+            }
+            return m;
+        } catch (Exception e) {
+            return json;
+        }
     }
 
     /** 广播新会话等待 (含技能) */
@@ -109,5 +123,49 @@ public class WsPushService implements MessageListener {
         payload.put("messageId", messageId);
         payload.put("readerId", readerId);
         messagingTemplate.convertAndSendToUser(String.valueOf(originalSenderId), "/queue/events", payload);
+    }
+
+    /**
+     * 监听 PresenceChangedEvent: 用户上线/下线时, 找到该用户所有活跃会话的对端, 广播 PRESENCE 事件.
+     */
+    @EventListener
+    public void onPresenceChanged(PresenceChangedEvent event) {
+        try {
+            List<ChatSession> sessions = presenceService.findActiveSessionsOf(event.getUserId(), event.getRole());
+            for (ChatSession s : sessions) {
+                Long peerId = CommonConstants.ROLE_AGENT.equalsIgnoreCase(event.getRole())
+                    ? s.getCustomerId()
+                    : s.getAgentId();
+                if (peerId == null) continue;
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("type", "PRESENCE");
+                payload.put("userId", event.getUserId());
+                payload.put("role", event.getRole());
+                payload.put("online", event.isOnline());
+                payload.put("sessionId", s.getId());
+                payload.put("ts", System.currentTimeMillis());
+                // 跨实例推送, 本实例的 simpUser 订阅会经由 onMessage 接收到
+                pushToUser(peerId, payload);
+            }
+            log.debug("[ws] PRESENCE broadcast user={} online={} peers={}",
+                event.getUserId(), event.isOnline(), sessions.size());
+        } catch (Exception e) {
+            log.error("[ws] PRESENCE broadcast failed", e);
+        }
+    }
+
+    /**
+     * 保留旧接口以备外部调用. 本推荐用事件机制.
+     */
+    @Deprecated
+    public void notifyPresence(Long peerId, Long userId, String role, boolean online, Long sessionId) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "PRESENCE");
+        payload.put("userId", userId);
+        payload.put("role", role);
+        payload.put("online", online);
+        payload.put("sessionId", sessionId);
+        payload.put("ts", System.currentTimeMillis());
+        pushToUser(peerId, payload);
     }
 }

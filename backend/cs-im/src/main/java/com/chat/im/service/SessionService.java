@@ -229,7 +229,7 @@ public class SessionService {
         }
     }
 
-    public ApiResponse<List<ChatSession>> mySessions() {
+    public ApiResponse<List<com.chat.im.dto.SessionView>> mySessions() {
         Long uid = UserContext.userId();
         String role = UserContext.role();
         LambdaQueryWrapper<ChatSession> q = new LambdaQueryWrapper<>();
@@ -239,7 +239,16 @@ public class SessionService {
             q.eq(ChatSession::getCustomerId, uid);
         }
         q.orderByDesc(ChatSession::getUpdatedAt).last("LIMIT 50");
-        return ApiResponse.ok(sessionMapper.selectList(q));
+        List<ChatSession> sessions = sessionMapper.selectList(q);
+        List<com.chat.im.dto.SessionView> views = new java.util.ArrayList<>(sessions.size());
+        for (ChatSession s : sessions) {
+            Long peerId = CommonConstants.ROLE_AGENT.equalsIgnoreCase(role)
+                ? s.getCustomerId()
+                : s.getAgentId();
+            Boolean peerOnline = peerId == null ? null : presenceService.isOnline(peerId);
+            views.add(com.chat.im.dto.SessionView.from(s, peerOnline));
+        }
+        return ApiResponse.ok(views);
     }
 
     public ApiResponse<List<Long>> waitingQueue() {

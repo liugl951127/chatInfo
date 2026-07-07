@@ -39,6 +39,7 @@
                :class="{ active: current?.id === s.id }"
                @click="select(s)">
             <div class="row1">
+              <span class="online-dot" :class="{ on: s.peerOnline === true, off: s.peerOnline === false }" :title="s.peerOnline ? '客户在线' : '客户离线'"></span>
               <span class="sno">{{ s.sessionNo }}</span>
               <el-badge :value="unreadMap[s.id] || 0" :hidden="!unreadMap[s.id]" :max="99">
                 <el-tag size="small" :type="statusTag(s.status)">{{ statusText(s.status) }}</el-tag>
@@ -62,6 +63,7 @@
                :class="{ active: current?.id === s.id }"
                @click="select(s)">
             <div class="row1">
+              <span class="online-dot" :class="{ on: s.peerOnline === true, off: s.peerOnline === false }" :title="s.peerOnline ? '客户在线' : '客户离线'"></span>
               <span class="sno">{{ s.sessionNo }}</span>
               <el-badge :value="unreadMap[s.id] || 0" :hidden="!unreadMap[s.id]" :max="99">
                 <el-tag size="small" :type="statusTag(s.status)">{{ statusText(s.status) }}</el-tag>
@@ -85,9 +87,11 @@
         <template v-else>
           <div class="chat-header">
             <div class="header-left">
+              <span class="online-dot" :class="{ on: current.peerOnline === true, off: current.peerOnline === false }" :title="current.peerOnline ? '客户在线' : '客户离线'"></span>
               <span class="sno">{{ current.sessionNo }}</span>
               <el-tag size="small" type="info" v-if="current.skillTag">{{ current.skillTag }}</el-tag>
               <span class="cust" v-if="!isMobile">客户 #{{ current.customerId }}</span>
+              <el-tag v-if="current.peerOnline === false" size="small" type="warning" effect="plain">客户已离线</el-tag>
             </div>
             <div class="header-right">
               <el-button size="small" @click="openTransfer">转接</el-button>
@@ -331,6 +335,16 @@ function onEvent(payload) {
   } else if (payload.type === 'TRANSFERRED') {
     ElMessage.info('会话已被转接')
     refreshSessions()
+  } else if (payload.type === 'PRESENCE') {
+    // 对端 (客户) 上线/下线状态变更 → 更新会话列表中的在线状态点
+    const i = sessions.value.findIndex(s => s.id === payload.sessionId)
+    if (i >= 0) {
+      sessions.value[i] = { ...sessions.value[i], peerOnline: payload.online, lastSeen: payload.ts }
+    }
+    // 如果是当前会话, 也更新顶部状态条
+    if (current.value && current.value.id === payload.sessionId) {
+      current.value = { ...current.value, peerOnline: payload.online, lastSeen: payload.ts }
+    }
   }
 }
 
@@ -549,6 +563,19 @@ function logout() {
   padding: 8px 12px; display: flex; align-items: center; justify-content: space-between;
   gap: 8px;
 }
+.online-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #c0c4cc;
+  margin-right: 4px;
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+.online-dot.on { background: #67c23a; box-shadow: 0 0 4px #67c23a; }
+.online-dot.off { background: #909399; }
+.session-item .row1 { display: flex; align-items: center; gap: 6px; }
+.session-item .row1 .sno { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .header-left { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; overflow: hidden; }
 .header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .chat-header .sno { font-family: 'Courier New', monospace; font-weight: 500; font-size: 14px; }

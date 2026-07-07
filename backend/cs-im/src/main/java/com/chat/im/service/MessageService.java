@@ -185,6 +185,37 @@ public class MessageService {
         }
     }
 
+    /**
+     * 发送系统消息 (持久化 + 推送给会话双方).
+     * <p>
+     * 由 SessionService 在接入/转接等场景调用, 客户/坐席实时看到提示。
+     */
+    @Transactional
+    public void sendSystemMessage(Long sessionId, String content) {
+        ChatSession s = sessionMapper.selectById(sessionId);
+        if (s == null) return;
+
+        ChatMessage m = new ChatMessage();
+        m.setSessionId(sessionId);
+        m.setSenderId(0L);
+        m.setSenderRole(CommonConstants.ROLE_SYSTEM);
+        m.setMsgType(CommonConstants.MSG_SYSTEM);
+        m.setContent(content);
+        m.setRecalled(0);
+        m.setCreatedAt(LocalDateTime.now());
+        messageMapper.insert(m);
+
+        MessageDTO dto = toDto(m);
+        // 推送给客户和坐席 (双发, 双方都能看到)
+        if (s.getCustomerId() != null) {
+            wsPushService.pushToUser(s.getCustomerId(), dto);
+        }
+        if (s.getAgentId() != null) {
+            wsPushService.pushToUser(s.getAgentId(), dto);
+        }
+        log.info("[system-msg] session={} content={}", sessionId, content);
+    }
+
     public ApiResponse<List<MessageDTO>> history(Long sessionId, Integer limit) {
         Long uid = UserContext.userId();
         ChatSession s = sessionMapper.selectById(sessionId);

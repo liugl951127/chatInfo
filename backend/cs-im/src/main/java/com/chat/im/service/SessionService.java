@@ -34,6 +34,7 @@ public class SessionService {
     private final AgentStatusService agentStatusService;
     private final WsPushService wsPushService;
     private final AuditLogService auditLogService;
+    private final MessageService messageService;
 
     private static final DateTimeFormatter NO_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
@@ -73,6 +74,13 @@ public class SessionService {
             s.setStatus(CommonConstants.SESSION_ACTIVE);
             s.setLastMessage("客服已接入");
             sessionMapper.updateById(s);
+            // 推送系统消息给客户: 当前坐席为您服务
+            Agent agent = userMapper.selectById(agentId);
+            String agentName = agent != null ? agent.getNickname() : "#" + agentId;
+            String skillPart = skillTag != null && !skillTag.isEmpty()
+                    ? " (擅长: " + skillTag + ")" : "";
+            messageService.sendSystemMessage(s.getId(),
+                    "客服 " + agentName + " 已为您服务" + skillPart);
             auditLogService.log(uid, "CREATE_SESSION", String.valueOf(s.getId()),
                     "auto-assigned to agent=" + agentId + " skill=" + skillTag);
         } else {
@@ -136,6 +144,13 @@ public class SessionService {
         s.setStatus(CommonConstants.SESSION_ACTIVE);
         s.setLastMessage("客服已接入");
         sessionMapper.updateById(s);
+        // 推送系统消息给客户: 当前坐席为您服务
+        Agent agent = userMapper.selectById(agentId);
+        String agentName = agent != null ? agent.getNickname() : "#" + agentId;
+        String skillPart = s.getSkillTag() != null && !s.getSkillTag().isEmpty()
+                ? " (擅长: " + s.getSkillTag() + ")" : "";
+        messageService.sendSystemMessage(sessionId,
+                "客服 " + agentName + " 已为您服务" + skillPart);
         auditLogService.log(agentId, "CLAIM", String.valueOf(sessionId), null);
         return ApiResponse.ok(s);
     }
@@ -168,7 +183,13 @@ public class SessionService {
         redis.delete(CommonConstants.REDIS_AGENT_SESSION + fromAgentId);
         assignAgent(sessionId, toAgentId);
 
-        // 通知双方 (WebSocket)
+        // 推送系统消息给会话双方: 会话已转接给 XXX
+        Agent newAgent = userMapper.selectById(toAgentId);
+        String newAgentName = newAgent != null ? newAgent.getNickname() : "#" + toAgentId;
+        messageService.sendSystemMessage(sessionId,
+                "会话已转接给客服 " + newAgentName + (reason != null && !reason.isEmpty()
+                        ? ", 原因: " + reason : ""));
+        // 通知双方 (WebSocket 事件)
         wsPushService.notifySessionTransferred(sessionId, fromAgentId, toAgentId, reason);
 
         auditLogService.log(fromAgentId, "TRANSFER", String.valueOf(sessionId),

@@ -29,6 +29,16 @@ export const imApi = {
   readMessage:    (messageId) => http.post(`/api/im/session/message/${messageId}/read`),
   readAll:        (sessionId) => http.post(`/api/im/session/${sessionId}/read-all`),
 
+  // 文件上传
+  uploadFile: (sessionId, file, onProgress) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return http.post(`/api/im/file/upload?sessionId=${sessionId}`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: onProgress,
+    })
+  },
+
   // 坐席状态
   setAgentStatus: (status) => http.post('/api/im/session/agent/status', null, { params: { status } }),
   getAgentStatus: () => http.get('/api/im/session/agent/status'),

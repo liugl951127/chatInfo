@@ -103,31 +103,53 @@
               <el-button v-else size="small" type="danger" plain @click="closeSession">×</el-button>
             </div>
           </div>
-          <div ref="messageListRef" class="message-list scroll-smooth">
-            <div v-for="(msg, idx) in messages" :key="msg.id || idx">
-              <div v-if="msg.msgType === 'SYSTEM' || msg.msgType === 'RECALL'" class="msg-system">
-                {{ msg.content }}
-              </div>
-              <div v-else class="msg-row" :class="{ mine: msg.senderId === userStore.id }">
-                <div class="bubble">
-                  <div class="meta">
-                    {{ msg.senderRole === 'AGENT' ? '我' : '客户' }}
-                    · {{ formatTime(msg.createdAt) }}
-                    <span v-if="msg.senderId === userStore.id && msg.id && readMap[msg.id]" class="read-tick">✓✓</span>
-                  </div>
-                  <img v-if="msg.msgType === 'IMAGE'" :src="msg.content" class="msg-image"
-                       @click="previewImageUrl = msg.content" />
-                  <div v-else class="text">{{ msg.content }}</div>
+          <DynamicScroller
+            ref="messageListRef"
+            :items="messages"
+            :min-item-size="48"
+            key-field="id"
+            class="message-list scroll-smooth"
+            @scroll="onScroll">
+            <template #default="{ item, index, active }">
+              <DynamicScrollerItem
+                :item="item"
+                :active="active"
+                :data-index="index"
+                :size-dependencies="[item.content, item.msgType, item.recalled, messages.length]">
+                <div v-if="item.msgType === 'SYSTEM' || item.msgType === 'RECALL'" class="msg-system">
+                  {{ item.content }}
                 </div>
-              </div>
-            </div>
-            <div v-if="peerTyping" class="typing-indicator">
-              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-              <span class="text">客户正在输入...</span>
-            </div>
+                <div v-else class="msg-row" :class="{ mine: item.senderId === userStore.id }">
+                  <div class="bubble">
+                    <div class="meta">
+                      {{ item.senderRole === 'AGENT' ? '我' : '客户' }}
+                      · {{ formatTime(item.createdAt) }}
+                      <span v-if="item.senderId === userStore.id && item.id && readMap[item.id]" class="read-tick">✓✓</span>
+                    </div>
+                    <img v-if="item.msgType === 'IMAGE'" :src="item.content" class="msg-image"
+                         @click="previewImageUrl = item.content" />
+                    <a v-else-if="item.msgType === 'FILE'"
+                       :href="`/api/im/file/raw?path=${encodeURIComponent(item.content)}`"
+                       :download="item.fileName || item.content.split('/').pop()"
+                       target="_blank" class="msg-file">
+                      <el-icon><Document /></el-icon>
+                      <div class="file-info">
+                        <div class="file-name">{{ item.fileName || item.content.split('/').pop() }}</div>
+                        <div class="file-meta">{{ formatBytes(item.fileSize) }} · {{ item.mimeType || '文件' }}</div>
+                      </div>
+                    </a>
+                    <div v-else class="text">{{ item.content }}</div>
+                  </div>
+                </div>
+              </DynamicScrollerItem>
+            </template>
+          </DynamicScroller>
+          <div v-if="peerTyping" class="typing-indicator">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="text">客户正在输入...</span>
           </div>
           <div class="composer">
-            <input ref="fileInputRef" type="file" accept="image/*" style="display:none" @change="onImagePick" />
+            <input ref="fileInputRef" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv" style="display:none" @change="onImagePick" />
             <el-button v-if="!isMobile" :icon="Picture" size="large" class="icon-btn"
                        @click="fileInputRef?.click()" title="发图片" />
             <el-button v-if="!isMobile" size="small" @click="openCanned" plain>模板</el-button>
@@ -193,7 +215,9 @@
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Picture, Menu } from '@element-plus/icons-vue'
+import { Picture, Menu, Document } from '@element-plus/icons-vue'
+import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { imApi } from '@/api/im'
 import { useUserStore } from '@/stores/user'
 import { StompClient } from '@/utils/ws-client'
@@ -261,6 +285,8 @@ onMounted(async () => {
   await refreshSessions()
   await loadAgentStatus()
   connectWs()
+  // 请求桌面通知权限 (默认不弹窗, 静默请求)
+  requestNotifyPermission()
   try {
     const offs = await imApi.drainOffline()
     offs.forEach(m => appendMessage(m))
@@ -322,9 +348,58 @@ function onIncomingMessage(m) {
   if (current.value && m.sessionId === current.value.id) {
     appendMessage(m)
     if (m.id && m.senderId !== userStore.id) imApi.readMessage(m.id).catch(() => {})
+    // 当前会话有新消息但页面隐藏 -> 发通知
+    if (document.visibilityState === 'hidden' && m.senderId !== userStore.id) {
+      notify('新消息', (m.content || '').slice(0, 60) + ((m.content || '').length > 60 ? '...' : ''), m.sessionId)
+    }
   } else {
     unreadMap.value = { ...unreadMap.value, [m.sessionId]: (unreadMap.value[m.sessionId] || 0) + 1 }
     refreshSessions()
+    // 其他会话的新消息 — 总通知 (含会话号)
+    if (m.senderId !== userStore.id) {
+      const s = sessions.value.find(x => x.id === m.sessionId)
+      const title = s ? `客户 #${s.customerId}` : '新会话'
+      notify(title, (m.content || '').slice(0, 60) + ((m.content || '').length > 60 ? '...' : ''), m.sessionId)
+    }
+  }
+}
+
+/**
+ * Web Notification API 封装. 用户首次交互 (按钮点击) 后请求权限,
+ * 然后调用此函数即可弹出系统通知.
+ * 已加防骚扰: 同一消息同一会话 30s 内不重复提醒.
+ */
+const _lastNotifyAt = new Map()  // sessionId -> ts
+function notify(title, body, sessionId) {
+  if (!('Notification' in window)) return
+  if (Notification.permission !== 'granted') return
+  const now = Date.now()
+  const last = _lastNotifyAt.get(sessionId) || 0
+  if (now - last < 30_000) return  // 30s 内不重复
+  _lastNotifyAt.set(sessionId, now)
+  try {
+    const n = new Notification(title, {
+      body,
+      tag: 'chat-' + sessionId,  // 同 tag 替换不堆积
+      icon: '/favicon.ico',
+      requireInteraction: false,
+    })
+    n.onclick = () => {
+      window.focus()
+      const s = sessions.value.find(x => x.id === sessionId)
+      if (s) select(s)
+      n.close()
+    }
+    setTimeout(() => n.close(), 8000)  // 8s 自动关闭
+  } catch (e) {
+    console.warn('[notify]', e)
+  }
+}
+
+async function requestNotifyPermission() {
+  if (!('Notification' in window)) return
+  if (Notification.permission === 'default') {
+    try { await Notification.requestPermission() } catch (e) {}
   }
 }
 
@@ -443,18 +518,45 @@ function send() {
   if (ok) { draft.value = ''; sendTyping(false) }
 }
 
-function onImagePick(e) {
+async function onImagePick(e) {
   const file = e.target.files?.[0]
-  if (!file) return
-  if (file.size > 5 * 1024 * 1024) return ElMessage.warning('图片不能超过 5MB')
-  const reader = new FileReader()
-  reader.onload = () => {
-    stomp?.send(`/app/send/${current.value.id}`, {
-      sessionId: current.value.id, msgType: 'IMAGE', content: reader.result
-    })
-  }
-  reader.readAsDataURL(file)
   e.target.value = ''
+  if (!file || !current.value) return
+  const sid = current.value.id
+
+  // 图片走 base64 直发 (5MB 以内, 预览方便)
+  if (file.type.startsWith('image/')) {
+    if (file.size > 5 * 1024 * 1024) return ElMessage.warning('图片不能超过 5MB')
+    const reader = new FileReader()
+    reader.onload = () => {
+      stomp?.send(`/app/send/${sid}`, {
+        sessionId: sid, msgType: 'IMAGE', content: reader.result
+      })
+    }
+    reader.readAsDataURL(file)
+    return
+  }
+
+  // 其他文件: 上传到 /api/im/file/upload, 拿到路径后走 STOMP 发 FILE 消息
+  if (file.size > 50 * 1024 * 1024) return ElMessage.warning('文件不能超过 50MB')
+  const loading = ElMessage({ message: '上传中...', duration: 0, type: 'info' })
+  try {
+    const r = await imApi.uploadFile(sid, file)
+    if (r.code !== 0) {
+      ElMessage.error('上传失败: ' + r.message)
+      return
+    }
+    // FILE 消息的 content 为相对路径, 前端拉取时拼 /api/im/file/raw?path=
+    stomp?.send(`/app/send/${sid}`, {
+      sessionId: sid, msgType: 'FILE', content: r.data.fileUrl,
+      fileName: r.data.fileName, fileSize: r.data.fileSize, mimeType: r.data.mimeType
+    })
+    ElMessage.success(`已发送: ${r.data.fileName}`)
+  } catch (err) {
+    ElMessage.error('上传异常: ' + (err?.message || '未知'))
+  } finally {
+    loading.close?.()
+  }
 }
 
 function onTyping() {
@@ -476,7 +578,13 @@ function appendMessage(m) {
 
 function scrollToBottom() {
   const el = messageListRef.value
-  if (el) el.scrollTop = el.scrollHeight
+  if (!el) return
+  // DynamicScroller 提供了 scrollToBottom() (底部) / scrollToItem() (指定项)
+  if (typeof el.scrollToBottom === 'function') {
+    el.scrollToBottom()
+  } else if (el.$el) {
+    el.$el.scrollTop = el.$el.scrollHeight
+  }
 }
 
 function formatTime(t) {
@@ -604,7 +712,7 @@ function logout() {
 .chat-header .sno { font-family: 'Courier New', monospace; font-weight: 500; font-size: 14px; }
 .chat-header .cust { color: #909399; font-size: 12px; margin-left: 6px; }
 
-.message-list { flex: 1; overflow-y: auto; padding: 14px 18px; }
+.message-list { flex: 1; overflow-y: auto; padding: 14px 18px; min-height: 0; }
 .msg-system { text-align: center; color: #909399; font-size: 12px; margin: 8px 0; }
 .msg-row { display: flex; margin-bottom: 12px; }
 .msg-row.mine { justify-content: flex-end; }
@@ -621,6 +729,19 @@ function logout() {
 .msg-row.mine .read-tick { color: #c8f5a0; }
 .text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
 .msg-image { max-width: 240px; max-height: 240px; border-radius: 4px; display: block; cursor: pointer; }
+.msg-file {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 12px; min-width: 200px; max-width: 280px;
+  background: rgba(255,255,255,0.7); border: 1px solid #dcdfe6;
+  border-radius: 6px; text-decoration: none; color: inherit;
+  transition: background 0.15s;
+}
+.msg-file:hover { background: rgba(64,158,255,0.1); border-color: #409eff; }
+.msg-file .el-icon { font-size: 28px; color: #409eff; }
+.msg-file .file-info { display: flex; flex-direction: column; min-width: 0; }
+.msg-file .file-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-file .file-meta { font-size: 11px; color: #909399; }
+.msg-row.mine .msg-file { background: rgba(255,255,255,0.85); }
 
 .typing-indicator {
   display: flex; align-items: center; gap: 4px;

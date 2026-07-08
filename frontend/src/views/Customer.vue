@@ -48,34 +48,46 @@
           </el-button>
         </div>
         <template v-else>
-          <div ref="messageListRef" class="message-list scroll-smooth" @scroll="onScroll">
-            <template v-for="(msg, idx) in messages" :key="msg.id || idx">
-              <div v-if="msg.msgType === 'SYSTEM' || msg.msgType === 'RECALL'" class="msg-system">
-                {{ msg.content }}
-              </div>
-              <div v-else class="msg-row" :class="{ mine: msg.senderId === userStore.id }">
-                <div class="bubble">
-                  <div class="meta">
-                    {{ msg.senderRole === 'AGENT' ? '客服' : '我' }}
-                    · {{ formatTime(msg.createdAt) }}
-                    <span v-if="msg.senderId === userStore.id && msg.id && readMap[msg.id]" class="read-tick" title="对方已读">
-                      ✓✓
-                    </span>
-                  </div>
-                  <img v-if="msg.msgType === 'IMAGE'" :src="msg.content" class="msg-image" @click="previewImage(msg.content)" />
-                  <div v-else class="text">{{ msg.content }}</div>
-                  <div v-if="msg.senderId === userStore.id && msg.id && !recalledMap[msg.id]" class="msg-actions">
-                    <el-button link size="small" @click="recall(msg.id)" v-if="canRecall(msg)">
-                      撤回
-                    </el-button>
+          <DynamicScroller
+            ref="messageListRef"
+            :items="messages"
+            :min-item-size="48"
+            key-field="id"
+            class="message-list scroll-smooth"
+            @scroll="onScroll">
+            <template #default="{ item, index, active }">
+              <DynamicScrollerItem
+                :item="item"
+                :active="active"
+                :data-index="index"
+                :size-dependencies="[item.content, item.msgType, item.recalled, messages.length]">
+                <div v-if="item.msgType === 'SYSTEM' || item.msgType === 'RECALL'" class="msg-system">
+                  {{ item.content }}
+                </div>
+                <div v-else class="msg-row" :class="{ mine: item.senderId === userStore.id }">
+                  <div class="bubble">
+                    <div class="meta">
+                      {{ item.senderRole === 'AGENT' ? '客服' : '我' }}
+                      · {{ formatTime(item.createdAt) }}
+                      <span v-if="item.senderId === userStore.id && item.id && readMap[item.id]" class="read-tick" title="对方已读">
+                        ✓✓
+                      </span>
+                    </div>
+                    <img v-if="item.msgType === 'IMAGE'" :src="item.content" class="msg-image" @click="previewImage(item.content)" />
+                    <div v-else class="text">{{ item.content }}</div>
+                    <div v-if="item.senderId === userStore.id && item.id && !recalledMap[item.id]" class="msg-actions">
+                      <el-button link size="small" @click="recall(item.id)" v-if="canRecall(item)">
+                        撤回
+                      </el-button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </DynamicScrollerItem>
             </template>
-            <div v-if="peerTyping" class="typing-indicator">
-              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-              <span class="text">{{ peerTyping }} 正在输入...</span>
-            </div>
+          </DynamicScroller>
+          <div v-if="peerTyping" class="typing-indicator">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <span class="text">{{ peerTyping }} 正在输入...</span>
           </div>
 
           <div class="composer">
@@ -149,6 +161,8 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, onUnmounted } from
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Picture, Menu } from '@element-plus/icons-vue'
+import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { imApi } from '@/api/im'
 import { recordApi } from '@/api/record'
 import { useUserStore } from '@/stores/user'
@@ -487,7 +501,13 @@ function appendMessage(m, skipScroll = false) {
 
 function scrollToBottom() {
   const el = messageListRef.value
-  if (el) el.scrollTop = el.scrollHeight
+  if (!el) return
+  // DynamicScroller 提供了 scrollToBottom() / scrollToItem() 实例方法
+  if (typeof el.scrollToBottom === 'function') {
+    el.scrollToBottom()
+  } else if (el.$el) {
+    el.$el.scrollTop = el.$el.scrollHeight
+  }
 }
 
 function onScroll() { /* 简化: 不做向上翻页加载历史 */ }
@@ -642,7 +662,7 @@ function logout() {
 .session-actions .el-button { width: 100%; }
 
 .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #f5f7fa; }
-.message-list { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.message-list { flex: 1; overflow-y: auto; padding: 16px 20px; min-height: 0; }
 .empty { height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
 
 .msg-row { display: flex; margin-bottom: 12px; }

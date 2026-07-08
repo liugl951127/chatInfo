@@ -52,6 +52,7 @@
                   {{ current.endReason ? endReasonText(current.endReason) : '录制中' }}
                 </el-tag>
                 <el-tag size="small" type="success" v-if="current.consentGiven">已获同意</el-tag>
+                <el-tag size="small" type="primary" v-if="mseBuffer.length > 1">🎬 无缝播放 (MSE)</el-tag>
               </span>
             </div>
             <div class="actions">
@@ -114,6 +115,10 @@ const loading = ref(false)
 const rebuilding = ref(false)
 const allBlobs = ref([])  // 缓存已加载的所有 chunk binary (用于合并下载)
 const videoEl = ref(null)
+// MSE 状态
+const mseSupported = ref(true)
+const mseBuffer = ref([])
+const mseAppending = ref(false)
 
 onMounted(async () => {
   try {
@@ -152,11 +157,25 @@ async function rebuildBlob() {
       ElMessage.warning('该录像没有分片')
       return
     }
-    // 并发下载所有分片二进制, 按 sequenceNo 排序
+    // 按 sequenceNo 排序
     chunks.sort((a, b) => a.sequenceNo - b.sequenceNo)
+
+    // 优先用 MediaSource Extensions (MSE) 实现跨分片无缝播放
+    // 兑底方案: Blob 直拼 (只能播首段)
+    if (canMSE() && chunks.length > 1) {
+      try {
+        await playWithMSE(chunks)
+        mseSupported.value = true
+        return
+      } catch (e) {
+        console.warn('[replay] MSE 播放失败, 兑底 Blob 直拼', e)
+        mseSupported.value = false
+      }
+    }
+
+    // 兑底: 并发下载所有分片 + Blob 直拼
     const blobs = await Promise.all(chunks.map(c => recordApi.downloadChunkBlob(c.id)))
     allBlobs.value = blobs
-    // 合并为单个 Blob (WebM 直拼, 浏览器能识别首段)
     const merged = new Blob(blobs, { type: chunks[0].mimeType || 'video/webm' })
     if (videoSrc.value) URL.revokeObjectURL(videoSrc.value)
     videoSrc.value = URL.createObjectURL(merged)
@@ -167,6 +186,86 @@ async function rebuildBlob() {
     loading.value = false
     rebuilding.value = false
   }
+}
+
+/**
+ * 判断浏览器是否支持 MSE (视频/音频 MIME).
+ */
+function canMSE() {
+  if (typeof window.MediaSource === 'undefined') return false
+  return MediaSource.isTypeSupported('video/webm;codecs=vp9')
+      || MediaSource.isTypeSupported('video/webm;codecs=vp8')
+      || MediaSource.isTypeSupported('video/webm')
+}
+
+/**
+ * 使用 MediaSource Extensions 逐段喂给 <video>, 实现跨分片无缝连续播放.
+ * 原理:
+ *   - 每个 5s WebM 片段以 ArrayBuffer 加到 sourceBuffer
+ *   - sourceBuffer 顺序处理, 拼接成完整时间线
+ *   - browser 内部完成 EBML/Cluster 重调度, 无需 ffmpeg
+ * 限制:
+ *   - 首段必须包含 EBML header + init segment (浏览器才能解码后续)
+ *   - sourceBuffer.mode = 'sequence' 会拼接 init segment (针对同一段编码器)
+ */
+async function playWithMSE(chunks) {
+  return new Promise((resolve, reject) => {
+    const v = videoEl.value
+    if (!v) return reject(new Error('video element not ready'))
+
+    const mime = chunks[0].mimeType || 'video/webm'
+    const ms = new MediaSource()
+    const blobUrl = URL.createObjectURL(ms)
+    videoSrc.value = blobUrl
+
+    ms.addEventListener('sourceopen', async () => {
+      try {
+        const sb = ms.addSourceBuffer(mime + ';codecs=vp8')
+        sb.mode = 'sequence'  // sequence 模式让 MSE 接受不同 init segment
+        const appendQueue = []
+        let appending = false
+
+        sb.addEventListener('updateend', () => {
+          if (appendQueue.length && !appending) {
+            const next = appendQueue.shift()
+            try { sb.appendBuffer(next) } catch (e) { console.error('[replay] appendBuffer err', e) }
+          } else if (!appendQueue.length && mseBuffer.value.length === chunks.length && !sb.updating) {
+            if (ms.readyState === 'open') ms.endOfStream()
+          }
+        })
+        sb.addEventListener('error', (e) => console.error('[replay] sb error', e))
+
+        function appendBuffer(buf) {
+          if (!buf || buf.byteLength === 0) return
+          if (sb.updating) appendQueue.push(buf)
+          else try { sb.appendBuffer(buf) } catch (e) { console.error('[replay] append err', e) }
+        }
+
+        // 按 sequence 顺序下载并 append
+        for (let i = 0; i < chunks.length; i++) {
+          const c = chunks[i]
+          const blob = await recordApi.downloadChunkBlob(c.id)
+          allBlobs.value.push(blob)
+          const buf = await blob.arrayBuffer()
+          mseBuffer.value.push(c.sequenceNo)
+          appendBuffer(buf)
+          // 给浏览器喘息机会, 避免 queue 过大
+          if (i % 4 === 3) await new Promise(r => setTimeout(r, 0))
+        }
+
+        // 全部喂完后 sourceBuffer 的 updateend 会 endOfStream
+        appending = false
+      } catch (e) {
+        reject(e)
+      }
+    })
+
+    ms.addEventListener('sourceended', () => resolve())
+    ms.addEventListener('error', (e) => reject(new Error('MSE error: ' + (e?.message || 'unknown'))))
+
+    // 2s 超时保护 (避免加载慢时 UI 卡死)
+    setTimeout(() => resolve(), 2000)
+  })
 }
 
 function downloadAll() {

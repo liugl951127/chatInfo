@@ -71,7 +71,7 @@ public final class BotService {
 
     /**
      * 根据用户消息生成回复.
-     * 返回 null 表示没匹配上 (调用方走 fallback).
+     * 始终返回非 null 字符串 (未匹配时返回 FALLBACK).
      */
     public static String reply(String userMessage) {
         if (userMessage == null || userMessage.trim().isEmpty()) {
@@ -94,7 +94,8 @@ public final class BotService {
             }
         }
 
-        return null;
+        // 3) 兜底回复 (永不返回 null, 保证客户总能看到机器人响应)
+        return pickOne(FALLBACK);
     }
 
     private static String pickOne(List<String> candidates) {

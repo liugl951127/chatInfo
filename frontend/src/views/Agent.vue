@@ -128,6 +128,10 @@
                     </div>
                     <img v-if="item.msgType === 'IMAGE'" :src="item.content" class="msg-image"
                          @click="previewImageUrl = item.content" />
+                    <div v-else-if="item.msgType === 'VOICE'" class="msg-voice">
+                      <audio :src="parseVoiceUrl(item.content)" controls preload="metadata" class="audio-player" />
+                      <span class="voice-meta">{{ parseVoiceSeconds(item.content) }}s</span>
+                    </div>
                     <a v-else-if="item.msgType === 'FILE'"
                        :href="`/api/im/file/raw?path=${encodeURIComponent(item.content)}`"
                        :download="item.fileName || item.content.split('/').pop()"
@@ -151,8 +155,21 @@
           <div class="composer">
             <input ref="fileInputRef" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv" style="display:none" @change="onImagePick" />
             <el-button v-if="!isMobile" :icon="Picture" size="large" class="icon-btn"
-                       @click="fileInputRef?.click()" title="发图片" />
+                       @click="fileInputRef?.click()" title="发文件/图片" />
+            <el-button v-if="!isMobile" :icon="Microphone" size="large" class="icon-btn"
+                       :type="recording ? 'danger' : ''"
+                       :loading="uploadingAudio"
+                       @click="toggleRecording"
+                       :title="recording ? '点击停止并发送' : '录音 (最长60秒)'" />
             <el-button v-if="!isMobile" size="small" @click="openCanned" plain>模板</el-button>
+            <el-popover v-if="!isMobile" v-model:visible="emojiOpen" placement="top-start" :width="280" trigger="click">
+              <template #reference>
+                <el-button size="large" class="icon-btn" title="表情">😊</el-button>
+              </template>
+              <div class="emoji-grid">
+                <button v-for="e in EMOJI_LIST" :key="e" class="emoji-btn" @click="insertEmoji(e)">{{ e }}</button>
+              </div>
+            </el-popover>
             <el-input
               v-model="draft"
               type="textarea"
@@ -162,6 +179,10 @@
               @keydown.ctrl.enter.prevent="send"
               @input="onTyping" />
             <el-button type="primary" size="large" class="send-btn" :disabled="!draft.trim()" @click="send">发送</el-button>
+          </div>
+          <div v-if="recording" class="recording-bar">
+            <span class="rec-dot"></span>
+            录音中 {{ recordSeconds }}s / 60s
           </div>
           <!-- 移动端快捷工具: 浮动按钮或额外按钮条 -->
           <div v-if="isMobile" class="mobile-tools">
@@ -215,7 +236,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Picture, Menu, Document } from '@element-plus/icons-vue'
+import { Picture, Microphone, Menu, Document } from '@element-plus/icons-vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { imApi } from '@/api/im'
@@ -237,6 +258,68 @@ const readMap = ref({})
 const peerTyping = ref('')
 const messageListRef = ref(null)
 const fileInputRef = ref(null)
+
+// 语音录音
+const recording = ref(false)
+const uploadingAudio = ref(false)
+const recordSeconds = ref(0)
+let mediaRecorder = null
+let recordedChunks = []
+let recordTimer = null
+
+// 表情
+const emojiOpen = ref(false)
+const EMOJI_LIST = '😀😁😂🤣😃😄😅😆😉😊😋😎😍😘🥰😗😙😚🙂🤗🤩🤔🤨😐😑😶🙄😏😣😥😮🤐😯😪😫😴😌😛😜😝🤤😒😓😔😕🙃🤑😲☹️🙁😖😞😟😤😢😭😦😧😨😩🤯😬😰😱🥵🥶😳🤪😵😡😠🤬😷🤒🤕🤢🤮🤧🥳🥺🤠🤡🤥🤫🤭🧐🤓👻💀☠️👽👾🤖💩❤️🧡💛💚💙💜🖤🤍🤎💔❣️💕💞💓💗💖💘💝👍👎👌✌️🤞🤟🤘🤙👈👉👆👇✋🤚🖐️🖖👋🤝🙏💪🦾'.split('')
+
+function insertEmoji(e) { draft.value = (draft.value || '') + e; emojiOpen.value = false }
+function parseVoiceUrl(content) { try { return JSON.parse(content||'{}').url||'' } catch { return '' } }
+function parseVoiceSeconds(content) { try { return JSON.parse(content||'{}').seconds||0 } catch { return 0 } }
+
+async function toggleRecording() {
+  if (recording.value) { stopRecording(); return }
+  if (!navigator.mediaDevices?.getUserMedia) return ElMessage.warning('浏览器不支持录音')
+  if (!current.value) return ElMessage.warning('请先选择会话')
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    recordedChunks = []
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '')
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 64_000 })
+                            : new MediaRecorder(stream)
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data) }
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop())
+      const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' })
+      if (blob.size < 1000) { ElMessage.warning('录音太短'); recordSeconds.value = 0; return }
+      uploadingAudio.value = true
+      try {
+        const file = new File([blob], `voice-${Date.now()}.webm`, { type: blob.type })
+        const res = await imApi.uploadFile(current.value.id, file)
+        const data = res.data || res
+        const url = data?.url || data?.rawUrl || ''
+        const seconds = Math.round(recordSeconds.value)
+        stomp?.send(`/app/send/${current.value.id}`, {
+          msgType: 'VOICE', content: JSON.stringify({ url, seconds, mimeType: blob.type })
+        })
+        ElMessage.success(`语音 ${seconds}s 已发送`)
+      } catch (err) { ElMessage.error('上传失败: ' + (err?.message||'')) }
+      finally { uploadingAudio.value = false; recordSeconds.value = 0 }
+    }
+    mediaRecorder.start(100)
+    recording.value = true
+    recordSeconds.value = 0
+    recordTimer = setInterval(() => {
+      recordSeconds.value++
+      if (recordSeconds.value >= 60) stopRecording()
+    }, 1000)
+  } catch (e) { ElMessage.error('麦克风权限被拒绝: ' + (e?.message||'')) }
+}
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop()
+  recording.value = false
+  if (recordTimer) { clearInterval(recordTimer); recordTimer = null }
+}
 const previewImageUrl = ref(null)
 
 const agentStatus = ref('ONLINE')
@@ -729,6 +812,20 @@ function logout() {
 .msg-row.mine .read-tick { color: #c8f5a0; }
 .text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
 .msg-image { max-width: 240px; max-height: 240px; border-radius: 4px; display: block; cursor: pointer; }
+.msg-voice { display: flex; align-items: center; gap: 8px; min-width: 180px; }
+.audio-player { height: 32px; flex: 1; min-width: 160px; }
+.voice-meta { font-size: 12px; color: #909399; white-space: nowrap; }
+.msg-row.mine .voice-meta { color: rgba(255,255,255,0.8); }
+.recording-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; background: #fef0f0; border-radius: 4px;
+  font-size: 12px; color: #f56c6c;
+}
+.rec-dot { width: 8px; height: 8px; border-radius: 50%; background: #f56c6c; animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: 0.3; } }
+.emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; max-height: 200px; overflow-y: auto; }
+.emoji-btn { border: none; background: transparent; font-size: 20px; padding: 4px; cursor: pointer; border-radius: 4px; }
+.emoji-btn:hover { background: #f0f9eb; }
 .msg-file {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 12px; min-width: 200px; max-width: 280px;

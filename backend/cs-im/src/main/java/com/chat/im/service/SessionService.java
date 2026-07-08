@@ -5,6 +5,9 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.chat.common.api.ApiResponse;
 import com.chat.common.constant.CommonConstants;
 import com.chat.common.security.UserContext;
+import com.chat.im.event.TransferToHumanEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import com.chat.im.entity.Agent;
 import com.chat.im.entity.ChatSession;
 import com.chat.im.mapper.ChatSessionMapper;
@@ -36,7 +39,7 @@ public class SessionService {
     private final AgentStatusService agentStatusService;
     private final WsPushService wsPushService;
     private final AuditLogService auditLogService;
-    private final MessageService messageService;
+    private final SystemMessageService systemMessageService;
 
     private static final DateTimeFormatter NO_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
@@ -79,7 +82,7 @@ public class SessionService {
             s.setStatus(CommonConstants.SESSION_ACTIVE);
             s.setLastMessage("智能客服在线, 请描述您的问题");
             sessionMapper.insert(s);
-            messageService.sendSystemMessage(s.getId(),
+            systemMessageService.sendSystemMessage(s.getId(),
                 "我是智能客服小助手, 可以帮您解答常见问题。\n输入 '人工' 可随时转接真人客服。");
             auditLogService.log(uid, "CREATE_BOT_SESSION", String.valueOf(s.getId()),
                 "skill=" + skillTag);
@@ -105,7 +108,7 @@ public class SessionService {
             String agentName = agent != null ? agent.getNickname() : "#" + agentId;
             String skillPart = skillTag != null && !skillTag.isEmpty()
                     ? " (擅长: " + skillTag + ")" : "";
-            messageService.sendSystemMessage(s.getId(),
+            systemMessageService.sendSystemMessage(s.getId(),
                     "客服 " + agentName + " 已为您服务" + skillPart);
             auditLogService.log(uid, "CREATE_SESSION", String.valueOf(s.getId()),
                     "auto-assigned to agent=" + agentId + " skill=" + skillTag);
@@ -154,29 +157,67 @@ public class SessionService {
      */
     @Transactional
     public ApiResponse<ChatSession> claim() {
+        return claim(null);
+    }
+
+    /**
+     * 抢单 (原子: 防串线).
+     *   - 主动接起指定会话 (Long sessionId) — 坐席从 waiting list 选单
+     *   - sessionId=null — 从 Redis 队列自动取下一个 WAITING
+     *   - 使用 MySQL 条件 UPDATE (CAS): 只更新 status=WAITING 且 agent_id IS NULL 的行
+     *   - 返回影响行数=0 → 被别人抢了, 报 409
+     */
+    @Transactional
+    public ApiResponse<ChatSession> claim(Long sessionId) {
         Long agentId = UserContext.userId();
         if (agentId == null) return ApiResponse.fail(401, "未登录");
 
-        String sid = redis.opsForList().leftPop(CommonConstants.REDIS_SESSION_QUEUE);
-        if (sid == null) return ApiResponse.fail(404, "暂无等待中的会话");
-        Long sessionId = Long.parseLong(sid);
-
-        ChatSession s = sessionMapper.selectById(sessionId);
-        if (s == null || !CommonConstants.SESSION_WAITING.equals(s.getStatus())) {
-            return ApiResponse.fail(409, "会话已被领取");
+        // 1) 取要抢的 sid: 指定 or 队列
+        if (sessionId == null) {
+            String sid = redis.opsForList().leftPop(CommonConstants.REDIS_SESSION_QUEUE);
+            if (sid == null) return ApiResponse.fail(404, "暂无等待中的会话");
+            sessionId = Long.parseLong(sid);
         }
+
+        // 2) 原子 CAS: 只在 session 还处于 WAITING 且 agent_id 为空时才接起
+        ChatSession probe = sessionMapper.selectById(sessionId);
+        if (probe == null) return ApiResponse.fail(404, "会话不存在");
+        if (!CommonConstants.ROLE_AGENT.equalsIgnoreCase(UserContext.role())) {
+            return ApiResponse.fail(403, "仅坐席可接单");
+        }
+
+        // 只更新 WAITING + agent_id IS NULL 的行 (MySQL 行锁)
+        ChatSession update = new ChatSession();
+        update.setAgentId(agentId);
+        update.setStatus(CommonConstants.SESSION_ACTIVE);
+        update.setLastMessage("客服已接入");
+        update.setUpdatedAt(LocalDateTime.now());
+        int affected = sessionMapper.update(update, new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getId, sessionId)
+                .eq(ChatSession::getStatus, CommonConstants.SESSION_WAITING)
+                .isNull(ChatSession::getAgentId));
+        if (affected == 0) {
+            // 被别人抢先了, 补偿: 从 Redis 队列移除该 sid (避免其他坐席重复拿)
+            redis.opsForList().remove(CommonConstants.REDIS_SESSION_QUEUE, 0, String.valueOf(sessionId));
+            ChatSession latest = sessionMapper.selectById(sessionId);
+            String who = (latest != null && latest.getAgentId() != null) ? "#" + latest.getAgentId() : "其他坐席";
+            return ApiResponse.fail(409, "会话已被 " + who + " 接起, 请选择其他会话");
+        }
+
+        // 3) 拿最新 session (CAS 后状态已是 ACTIVE)
+        ChatSession s = sessionMapper.selectById(sessionId);
         assignAgent(sessionId, agentId);
-        s.setAgentId(agentId);
-        s.setStatus(CommonConstants.SESSION_ACTIVE);
-        s.setLastMessage("客服已接入");
-        sessionMapper.updateById(s);
-        // 推送系统消息给客户: 当前坐席为您服务
+
         Agent agent = userMapper.selectById(agentId);
         String agentName = agent != null ? agent.getNickname() : "#" + agentId;
         String skillPart = s.getSkillTag() != null && !s.getSkillTag().isEmpty()
                 ? " (擅长: " + s.getSkillTag() + ")" : "";
-        messageService.sendSystemMessage(sessionId,
+        systemMessageService.sendSystemMessage(sessionId,
                 "客服 " + agentName + " 已为您服务" + skillPart);
+
+        // 4) 补偿: 队列里别的相同 sid 一起清理 (防 Redis 残留)
+        redis.opsForList().remove(CommonConstants.REDIS_SESSION_QUEUE, 0, String.valueOf(sessionId));
+
         auditLogService.log(agentId, "CLAIM", String.valueOf(sessionId), null);
         return ApiResponse.ok(s);
     }
@@ -212,7 +253,7 @@ public class SessionService {
         // 推送系统消息给会话双方: 会话已转接给 XXX
         Agent newAgent = userMapper.selectById(toAgentId);
         String newAgentName = newAgent != null ? newAgent.getNickname() : "#" + toAgentId;
-        messageService.sendSystemMessage(sessionId,
+        systemMessageService.sendSystemMessage(sessionId,
                 "会话已转接给客服 " + newAgentName + (reason != null && !reason.isEmpty()
                         ? ", 原因: " + reason : ""));
         // 通知双方 (WebSocket 事件)
@@ -311,9 +352,9 @@ public class SessionService {
 
         // 推送系统消息 (另一方能看到)
         if (CommonConstants.ROLE_AGENT.equalsIgnoreCase(role) && s.getCustomerId() != null) {
-            messageService.sendSystemMessage(sessionId, "客服已结束本次会话");
+            systemMessageService.sendSystemMessage(sessionId, "客服已结束本次会话");
         } else if (CommonConstants.ROLE_CUSTOMER.equalsIgnoreCase(role) && s.getAgentId() != null) {
-            messageService.sendSystemMessage(sessionId, "客户已结束本次会话");
+            systemMessageService.sendSystemMessage(sessionId, "客户已结束本次会话");
         }
         // 推 CLOSED 事件 (另一方刷新会话列表 + 清理当前)
         String reason = CommonConstants.ROLE_AGENT.equalsIgnoreCase(role) ? "AGENT_CLOSE" : "CUSTOMER_CLOSE";
@@ -329,6 +370,41 @@ public class SessionService {
      * 客户前端应刷新 /api/im/session/mine 看到新会话.
      */
     @Transactional
+    /**
+     * 异步处理客户转人工事件 (由 MessageService 发布).
+     * 不走 UserContext, 事件本身携带 customerId + sessionId + skill.
+     */
+    @EventListener
+    @Async
+    public void onTransferToHumanEvent(TransferToHumanEvent event) {
+        Long customerId = event.getCustomerId();
+        Long oldSessionId = event.getOldSessionId();
+        String skillTag = event.getSkillTag();
+        log.info("[event] TransferToHuman: customer={} session={} skill={}", customerId, oldSessionId, skillTag);
+
+        ChatSession old = sessionMapper.selectById(oldSessionId);
+        if (old == null || CommonConstants.SESSION_CLOSED.equals(old.getStatus())) return;
+        if (!customerId.equals(old.getCustomerId())) return;
+
+        // 关闭 bot 会话
+        old.setStatus(CommonConstants.SESSION_CLOSED);
+        old.setClosedAt(LocalDateTime.now());
+        old.setLastMessage("客户申请转人工");
+        sessionMapper.updateById(old);
+        redis.delete(CommonConstants.REDIS_CUSTOMER_SESSION + customerId);
+
+        // 重新进人工队列 — 直接调内部 create 逻辑
+        ApiResponse<ChatSession> fresh = create(skillTag != null ? skillTag : old.getSkillTag(), false);
+        Long newId = fresh.getData() != null ? fresh.getData().getId() : null;
+        auditLogService.log(customerId, "TRANSFER_BOT_TO_HUMAN", String.valueOf(oldSessionId),
+                "newSession=" + newId);
+
+        // 推事件给客户前端: 跳转到新会话
+        if (newId != null) {
+            wsPushService.pushBotTransferEvent(customerId, oldSessionId, newId);
+        }
+    }
+
     public ApiResponse<ChatSession> transferToHuman(Long sessionId, String skillTag) {
         Long uid = UserContext.userId();
         if (!CommonConstants.ROLE_CUSTOMER.equalsIgnoreCase(UserContext.role())) {
@@ -392,7 +468,7 @@ public class SessionService {
         String text = reason != null && !reason.isEmpty()
             ? "客户已主动退出 (" + reason + ")"
             : "客户已主动退出会话";
-        messageService.sendSystemMessage(sessionId, text);
+        systemMessageService.sendSystemMessage(sessionId, text);
         // 推事件 (坐席侧 Client.OnEvent 收到 type=CLOSED, 刷新列表)
         wsPushService.notifySessionClosed(sessionId, s.getCustomerId(), s.getAgentId(), "CUSTOMER_EXIT");
 
@@ -477,7 +553,7 @@ public class SessionService {
             : null;
         String msg = "客户申请转接, 客服已更换为 " + newAgentName +
             (oldAgentName != null ? " (原客服 " + oldAgentName + ")" : "");
-        messageService.sendSystemMessage(sessionId, msg);
+        systemMessageService.sendSystemMessage(sessionId, msg);
         wsPushService.notifySessionTransferred(sessionId, fromAgentId, newAgentId, "客户申请转接");
 
         auditLogService.log(uid, "CUSTOMER_TRANSFER", String.valueOf(sessionId),

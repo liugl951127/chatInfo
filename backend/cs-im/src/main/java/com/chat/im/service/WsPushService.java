@@ -141,6 +141,20 @@ public class WsPushService implements MessageListener {
         }
     }
 
+    /**
+     * 机器人会话转人工事件 (推给客户).
+     *  - type=BOT_TRANSFER, oldSessionId 旧 bot 会话 (CLOSED), newSessionId 新人工会话 (WAITING)
+     *  - 客户前端收后: 1) 停录制 2) 刷 mine 列表 3) 跳转到新人工会话
+     */
+    public void pushBotTransferEvent(Long customerId, Long oldSessionId, Long newSessionId) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "BOT_TRANSFER");
+        payload.put("oldSessionId", oldSessionId);
+        payload.put("newSessionId", newSessionId);
+        payload.put("ts", System.currentTimeMillis());
+        messagingTemplate.convertAndSendToUser(String.valueOf(customerId), "/queue/events", payload);
+    }
+
     /** 客户/坐席 输入状态广播 */
     public void notifyTyping(Long sessionId, Long userId, String role, boolean typing) {
         Map<String, Object> payload = new HashMap<>();

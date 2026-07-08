@@ -40,8 +40,9 @@ public class SessionController {
 
     @Operation(summary = "坐席抢单")
     @PostMapping("/claim")
-    public ApiResponse<ChatSession> claim() {
-        return sessionService.claim();
+    public ApiResponse<ChatSession> claim(@RequestParam(required = false) Long sessionId) {
+        // 不传 sessionId → 从 Redis 队列自动取下一个; 传了 → 手动接起指定会话 (防串线 CAS)
+        return sessionService.claim(sessionId);
     }
 
     @Operation(summary = "会话转接")

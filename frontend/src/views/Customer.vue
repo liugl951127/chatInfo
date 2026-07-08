@@ -371,7 +371,7 @@ function onTypingEvent(payload) {
   peerTyping.value = payload.typing ? '客服' : ''
 }
 
-function onEvent(payload) {
+async function onEvent(payload) {
   if (!payload) return
   if (payload.type === 'READ' && payload.messageId) {
     readMap.value = { ...readMap.value, [payload.messageId]: true }
@@ -385,6 +385,30 @@ function onEvent(payload) {
     ElMessage.info('会话已转接给其他客服')
     drawerVisible.value = false
     refreshSessionFromServer()
+  } else if (payload.type === 'BOT_TRANSFER') {
+    // 机器人会话转人工成功 → 主动加载新会话并跳转
+    ElMessage.success('已为您转接人工客服, 正在匹配坐席...')
+    drawerVisible.value = false
+    // 停原 bot 会话录制
+    stopRecorder('TRANSFER_BOT_TO_HUMAN').catch(() => {})
+    // 重新从服务端拉 mine (新人工会话在最后)
+    try {
+      const list = await imApi.mySessions()
+      // 优先找 WAITING/ACTIVE 的人工会话 (isBot=0)
+      const human = list.find(s => s.status !== 'CLOSED' && s.isBot === 0)
+      if (human) {
+        session.value = human
+        messages.value = []
+        await loadHistory()
+        appendMessage({
+          msgType: 'SYSTEM', senderRole: 'SYSTEM',
+          content: '已退出机器人会话, 正在为您匹配人工客服...',
+          createdAt: new Date().toISOString()
+        }, true)
+        // 人工会话需要重新启动录制 (客户需要重新同意)
+        // 这里仅检测本地存在, 不强制启动 (避免连续两次同意提示)
+      }
+    } catch (e) { console.warn('refresh after bot transfer failed', e) }
   } else if (payload.type === 'CLOSED') {
     if (session.value && payload.sessionId === session.value.id && session.value.status !== 'CLOSED') {
       session.value = { ...session.value, status: 'CLOSED' }

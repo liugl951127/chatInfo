@@ -3,7 +3,7 @@ import http from './axios'
 export const imApi = {
   // 会话
   createSession: (skill, mode = 'human') => http.post('/api/im/session/create', null, { params: { skill, mode } }),
-  claimSession:  () => http.post('/api/im/session/claim'),
+  claimSession:  (sessionId) => http.post('/api/im/session/claim', null, { params: sessionId ? { sessionId } : {} }),
   transferSession: (sessionId, toAgentId, reason) =>
     http.post(`/api/im/session/${sessionId}/transfer`, null, { params: { toAgentId, reason } }),
   rateSession:   (sessionId, rating, comment) =>

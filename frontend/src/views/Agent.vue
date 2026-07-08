@@ -83,9 +83,20 @@
 
       <section class="chat-area">
         <div v-if="!current" class="empty">
-          <el-empty description="等待客户接入中…" />
-          <el-button v-if="isMobile && waitingCount > 0" type="primary" size="large"
-                     @click="claimOne">抢单 ({{ waitingCount }})</el-button>
+          <el-empty v-if="waitingList.length === 0" description="等待客户接入中…" />
+          <div v-else class="waiting-panel">
+            <h4>进线客户 ({{ waitingList.length }})</h4>
+            <div v-for="s in waitingList" :key="s.id" class="waiting-item">
+              <div class="wi-info">
+                <span class="sno">{{ s.sessionNo }}</span>
+                <el-tag size="small" v-if="s.skillTag">{{ s.skillTag }}</el-tag>
+                <span class="wait-time">客户 #{{ s.customerId }}</span>
+              </div>
+              <el-button size="small" type="primary" :loading="claimingId === s.id"
+                         @click="claimOne(s.id)">接起</el-button>
+            </div>
+            <p class="hint">点击「接起」手动接入该客户 (系统保证唯一坐席成功)</p>
+          </div>
         </div>
         <template v-else>
           <div class="chat-header">
@@ -253,6 +264,8 @@ const draft = ref('')
 const connected = ref(false)
 const reconnecting = ref(false)
 const waitingCount = ref(0)
+const waitingList = ref([])  // [{id, sessionNo, skillTag, customerId, ...}]
+const claimingId = ref(null)
 const unreadMap = ref({})
 const readMap = ref({})
 const peerTyping = ref('')
@@ -559,18 +572,32 @@ async function refreshSessions() {
 async function refreshWaiting() {
   try {
     const list = await imApi.waitingList()
+    waitingList.value = list
     waitingCount.value = list.length
   } catch {}
 }
 
-async function claimOne() {
+async function claimOne(sessionId = null) {
+  claimingId.value = sessionId
   try {
-    const s = await imApi.claimSession()
+    const s = sessionId
+      ? await imApi.claimSession(sessionId)  // 手动接起指定会话 (防串线 CAS)
+      : await imApi.claimSession()             // 从队列自动取下一个
     ElMessage.success(`已接入 ${s.sessionNo}`)
+    await refreshWaiting()
     await refreshSessions()
     select(s)
   } catch (e) {
-    if (e.message?.includes('暂无')) ElMessage.warning(e.message)
+    if (e.code === 409) {
+      ElMessage.warning(e.message || '会话已被其他坐席接起, 请选择其他会话')
+    } else if (e.message?.includes('暂无')) {
+      ElMessage.warning(e.message)
+    } else {
+      ElMessage.error('接单失败: ' + (e?.message || '未知错误'))
+    }
+    await refreshWaiting()  // 刷新等诗列表
+  } finally {
+    claimingId.value = null
   }
 }
 
@@ -743,6 +770,39 @@ function logout() {
 .menu-btn { padding: 8px; }
 .user-area { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .waiting-badge :deep(.el-badge__content) { background: #f56c6c; }
+.waiting-panel {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.waiting-panel h4 {
+  margin: 0 0 12px;
+  color: #303133;
+  font-size: 14px;
+  text-align: left;
+}
+.waiting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  transition: all 0.2s;
+}
+.waiting-item:hover { border-color: #409eff; box-shadow: 0 2px 6px rgba(64,158,255,0.15); }
+.wi-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #606266; }
+.wi-info .sno { font-weight: 600; color: #303133; }
+.waiting-panel .hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #909399;
+  text-align: center;
+}
 
 .chat-main { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 

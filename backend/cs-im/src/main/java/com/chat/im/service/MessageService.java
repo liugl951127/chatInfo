@@ -29,6 +29,9 @@ public class MessageService {
     private final ChatSessionMapper sessionMapper;
     private final MessageReceiptMapper receiptMapper;
     private final SimpMessagingTemplate messagingTemplate;
+    // 不再直接依赖 SessionService, 通过 ApplicationEvent 解耦 (避免循环依赖)
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final SystemMessageService systemMessageService;
     private final PresenceService presenceService;
     private final OfflineMessageStore offlineStore;
     private final UnreadCounterService unreadCounterService;
@@ -81,6 +84,24 @@ public class MessageService {
 
         log.debug("[msg] session={} from {} ({}) -> peer={}", sessionId, senderId, role, peerId);
 
+        // 机器人会话: 客户发"人工"或"真人" → 发布事件, SessionService 异步处理转人工
+        if (s.getAgentId() == null && CommonConstants.ROLE_CUSTOMER.equals(role)
+                && s.getIsBot() != null && s.getIsBot() == 1
+                && CommonConstants.MSG_TEXT.equals(m.getMsgType())) {
+            String text = in.getContent() == null ? "" : in.getContent().trim();
+            if (containsTransferKeyword(text)) {
+                try {
+                    // 发事件给 SessionService (解耦, 避免循环依赖)
+                    eventPublisher.publishEvent(new com.chat.im.event.TransferToHumanEvent(
+                            this, senderId, sessionId, s.getSkillTag()));
+                    log.info("[bot] transfer request published: customer={} session={}", senderId, sessionId);
+                } catch (Exception e) {
+                    log.warn("[bot] transfer publish failed", e);
+                }
+                return;  // 不再走 bot reply
+            }
+        }
+
         // 机器人会话: 客户发消息后自动回复 (sender_role=BOT 推到 /queue/messages)
         if (s.getAgentId() == null && CommonConstants.ROLE_CUSTOMER.equals(role)
                 && s.getIsBot() != null && s.getIsBot() == 1
@@ -97,6 +118,18 @@ public class MessageService {
                 log.warn("[bot] reply failed", e);
             }
         }
+    }
+
+    /** 检测客户是否请求转人工 ("人工" / "真人" / "转接" / "转人工" / "human") */
+    private static final java.util.Set<String> TRANSFER_KW = java.util.Set.of(
+        "人工", "真人", "转接", "转人工", "human", "agent", "坐席");
+    private static boolean containsTransferKeyword(String text) {
+        if (text == null || text.isEmpty()) return false;
+        String lower = text.toLowerCase().trim();
+        for (String kw : TRANSFER_KW) {
+            if (lower.contains(kw.toLowerCase())) return true;
+        }
+        return false;
     }
 
     /**
@@ -232,34 +265,13 @@ public class MessageService {
     }
 
     /**
-     * 发送系统消息 (持久化 + 推送给会话双方).
-     * <p>
-     * 由 SessionService 在接入/转接等场景调用, 客户/坐席实时看到提示。
+     * 发送系统消息已挪到 SystemMessageService (避免与 SessionService 循环依赖).
+     * @deprecated 保留空方法防止外部调用报错
      */
-    @Transactional
+    @Deprecated
     public void sendSystemMessage(Long sessionId, String content) {
-        ChatSession s = sessionMapper.selectById(sessionId);
-        if (s == null) return;
-
-        ChatMessage m = new ChatMessage();
-        m.setSessionId(sessionId);
-        m.setSenderId(0L);
-        m.setSenderRole(CommonConstants.ROLE_SYSTEM);
-        m.setMsgType(CommonConstants.MSG_SYSTEM);
-        m.setContent(content);
-        m.setRecalled(0);
-        m.setCreatedAt(LocalDateTime.now());
-        messageMapper.insert(m);
-
-        MessageDTO dto = toDto(m);
-        // 推送给客户和坐席 (双发, 双方都能看到)
-        if (s.getCustomerId() != null) {
-            wsPushService.pushToUser(s.getCustomerId(), dto);
-        }
-        if (s.getAgentId() != null) {
-            wsPushService.pushToUser(s.getAgentId(), dto);
-        }
-        log.info("[system-msg] session={} content={}", sessionId, content);
+        // delegate to SystemMessageService
+        systemMessageService.sendSystemMessage(sessionId, content);
     }
 
     public ApiResponse<List<MessageDTO>> history(Long sessionId, Integer limit) {

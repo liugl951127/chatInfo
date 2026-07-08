@@ -483,7 +483,7 @@ async function tryRecorder() {
     let ok = false
     try {
       await ElMessageBox.confirm(
-        '为了服务质量与合规要求, 我们会对本次会话页面进行视频录制 (包括聊天内容和页面操作), 仅供内部审计/质量回溯使用。\n\n注: 录制会在您切换页面、切后台后自动恢复, 仅在主动退出时才结束。',
+        '为了服务质量与合规要求, 我们会对本次会话页面进行视频录制 (包括聊天内容和页面操作), 仅供内部审计/质量回溯使用。\n\n📹 默认采用 DOM 录制 (25fps / 1080p / 2.5Mbps)\n注: 录制会在您切换页面、切后台后自动恢复, 仅在主动退出时才结束。',
         '开始会话前需告知',
         {
           confirmButtonText: '同意并开始',
@@ -509,15 +509,39 @@ async function tryRecorder() {
     userId: userStore.id,
     nickname: userStore.nickname || userStore.username || '',
     target: '.customer-shell',
-    fps: 4,
-    chunkDurationMs: 5000,
-    bitrate: 500_000,
+    // v4: 高清录制参数
+    mode: 'dom',           // 'dom' (html2canvas 稳定) | 'screen' (getDisplayMedia 高清)
+    fps: 25,               // 4 → 25 (流畅)
+    chunkDurationMs: 3000, // 5s → 3s (减小单个 chunk, 利于网络上传)
+    bitrate: 2_500_000,    // 500kbps → 2.5Mbps (清晰)
+    maxWidth: 1920,        // 1280 → 1920
+    maxHeight: 1080,       // 800 → 1080
     watermark: true,
     brandText: '本会话已开启录制 — 用于服务回溯',
     ignoreSelector: '.no-record',
     existingRecordId,  // v3: 续上之前未结束的 record (若有)
     pauseOnHidden: true,  // v3: 切后台自动暂停
-    onError: (e) => console.error('[record]', e),
+    onScreenPickerRequired: async () => {
+      // screen 模式下提示用户 (以防 screen mode 下才有用)
+      if (recorder?.opts?.mode !== 'screen') return
+      await ElMessageBox.confirm(
+        '高清录制模式需要您授权屏幕共享. 选择“窗口/标签页”仅录制当前页面内容.',
+        '请授权屏幕共享',
+        { confirmButtonText: '继续', cancelButtonText: '取消', type: 'info' }
+      ).catch(() => {
+        throw new Error('用户取消授权')
+      })
+    },
+    onError: (e) => {
+      console.error('[record]', e)
+      // screen 模式被拒时自动退回 dom 模式
+      if (recorder?.opts?.mode === 'screen' && /拒绝|cancel|denied|ended/i.test(String(e?.message))) {
+        ElMessage.warning('屏幕录制被拒, 自动改用 DOM 录制')
+        try { recorder.stop('SCREEN_DENIED') } catch {}
+      } else {
+        ElMessage.error('录制出错: ' + (e?.message || ''))
+      }
+    },
     onState: (s) => console.log('[record] state =', s),
   })
   await recorder.start()

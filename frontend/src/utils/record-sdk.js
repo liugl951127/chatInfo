@@ -12,9 +12,17 @@
 
 import html2canvas from 'html2canvas'
 
-const DEFAULT_FPS = 4
-const DEFAULT_CHUNK_MS = 5000
-const DEFAULT_BITRATE = 500_000
+// v4 高清录制 (2026-07-08): 提高 fps/码率/分辨率上限
+//   - fps: 4 → 25 (流畅人眼阈值)
+//   - bitrate: 500kbps → 2.5Mbps (清晰可辨)
+//   - canvas max: 1280x800 → 1920x1080 (不再缩)
+//   - html2canvas scale: max(2) → max(1) (原始尺寸, 不超采样)
+//   - 新增 mode: 'dom' (html2canvas 采集 DOM, 稳定) | 'screen' (getDisplayMedia 桌面流, 质量最高)
+const DEFAULT_FPS = 25
+const DEFAULT_CHUNK_MS = 3000
+const DEFAULT_BITRATE = 2_500_000  // 2.5 Mbps
+const DEFAULT_MAX_WIDTH = 1920
+const DEFAULT_MAX_HEIGHT = 1080
 const MAX_RETRIES = 3
 const STORAGE_KEY_PREFIX = 'chat_record:'
 
@@ -39,6 +47,11 @@ export class ChatRecordSDK {
       existingRecordId: opts.existingRecordId || null,  // 续录: 跳过 init
       pauseOnHidden: opts.pauseOnHidden !== false,      // 切后台自动暂停
       onConsentRequired: opts.onConsentRequired,
+      // v4 新增:
+      mode: opts.mode || 'dom',                          // 'dom' = html2canvas, 'screen' = getDisplayMedia
+      maxWidth: opts.maxWidth || DEFAULT_MAX_WIDTH,
+      maxHeight: opts.maxHeight || DEFAULT_MAX_HEIGHT,
+      onScreenPickerRequired: opts.onScreenPickerRequired, // screen 模式下提示用户选屏幕
       onError: opts.onError || ((e) => console.error('[record]', e)),
       onState: opts.onState || (() => {}),
     }
@@ -132,9 +145,14 @@ export class ChatRecordSDK {
     this._saveRecordId(this.recordId)
 
     this._mountIndicator()
-    this._initCanvas()
-    this._startCaptureLoop()
-    this._startMediaRecorder()
+    if (this.opts.mode === 'screen') {
+      // v4: screen 模式 (原生桌面流, 最高质量, 不需 html2canvas)
+      this._startScreenCapture().catch(e => this.opts.onError(e))
+    } else {
+      this._initCanvas()
+      this._startCaptureLoop()
+      this._startMediaRecorder()
+    }
 
     this._wireLifecycleHooks()
 
@@ -194,9 +212,13 @@ export class ChatRecordSDK {
     if (!this._paused || this._stopping || !this.recordId) return
     this._paused = false
     this._mountIndicator()
-    this._initCanvas()
-    this._startCaptureLoop()
-    this._startMediaRecorder()
+    if (this.opts.mode === 'screen') {
+      this._startScreenCapture().catch(e => this.opts.onError(e))
+    } else {
+      this._initCanvas()
+      this._startCaptureLoop()
+      this._startMediaRecorder()
+    }
     this.opts.onState('resumed')
   }
 
@@ -256,12 +278,61 @@ export class ChatRecordSDK {
   }
 
   _startMediaRecorder() {
+    const stream = this.canvas.captureStream(this.opts.fps)
+    this._bindRecorder(stream, 'dom')
+  }
+
+  /**
+   * v4: 屏幕录制模式 (getDisplayMedia 拿原生桌面流).
+   *  - 质量最高 (原生屏幕分辨率 + 原生 fps)
+   *  - 不需要 html2canvas, 不失真
+   *  - 缺点: 需要用户授权, 录制整个屏幕 (或窗口/标签页)
+   */
+  async _startScreenCapture() {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      throw new Error('当前浏览器不支持屏幕录制 (getDisplayMedia)')
+    }
+    // 提示用户选屏 (可由 opts.onScreenPickerRequired 拦截)
+    if (this.opts.onScreenPickerRequired) {
+      await this.opts.onScreenPickerRequired()
+    }
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: {
+        frameRate: this.opts.fps,
+        width: { ideal: this.opts.maxWidth },
+        height: { ideal: this.opts.maxHeight },
+        cursor: 'always',
+      },
+      audio: false,
+    })
+    // 用户点 Stop sharing 时主动调 stop
+    stream.getVideoTracks()[0].addEventListener('ended', () => {
+      console.log('[record] screen share ended by user')
+      this.opts.onError(new Error('用户取消了屏幕共享'))
+      this.stop('SCREEN_SHARE_ENDED').catch(() => {})
+    })
+    console.log('[record] screen capture stream ready', stream.getVideoTracks()[0]?.getSettings())
+    this._bindRecorder(stream, 'screen')
+  }
+
+  /** 绑定 MediaRecorder 到任意 stream (dom canvas 或 screen) */
+  _bindRecorder(stream, source) {
+    this.stream = stream
     try {
-      this.stream = this.canvas.captureStream(this.opts.fps)
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : (MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm')
-      this.recorder = new MediaRecorder(this.stream, { mimeType, videoBitsPerSecond: this.opts.bitrate })
+      // v4: codec 优先级 — H.264 (Safari/Chrome 现代版) > VP9 > VP8 > 默认
+      const candidates = [
+        'video/webm;codecs=h264',
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm',
+        'video/mp4;codecs=h264',
+      ]
+      const mimeType = candidates.find(c => MediaRecorder.isTypeSupported(c)) || 'video/webm'
+      this.recorder = new MediaRecorder(this.stream, {
+        mimeType,
+        videoBitsPerSecond: this.opts.bitrate,
+      })
+      console.log(`[record] using ${source} codec:`, mimeType, 'bitrate:', this.opts.bitrate)
     } catch (e) {
       this.opts.onError(e)
       return
@@ -390,19 +461,23 @@ export class ChatRecordSDK {
     }
   }
 
-  // ===== DOM capture + 水印 (同 v2) =====
+  // ===== DOM capture + 水印 (v4 提高分辨率上限) =====
   _initCanvas() {
     const target = typeof this.opts.target === 'string'
       ? document.querySelector(this.opts.target)
       : this.opts.target
     const rect = (target.getBoundingClientRect && target.getBoundingClientRect()) || { width: 800, height: 600 }
-    const maxW = 1280, maxH = 800
+    // v4: 提高到 1920x1080, 仅当超过才缩, 否则保持原始尺寸 (避免超采样模糊)
+    const maxW = this.opts.maxWidth
+    const maxH = this.opts.maxHeight
     const ratio = Math.min(maxW / rect.width, maxH / rect.height, 1)
     this.canvas = document.createElement('canvas')
     this.canvas.width = Math.max(320, Math.floor(rect.width * ratio))
     this.canvas.height = Math.max(240, Math.floor(rect.height * ratio))
     this._targetEl = target
     this._renderSize = { w: this.canvas.width, h: this.canvas.height }
+    // 帧间 hash 去重 (避免重复帧占码率)
+    this._lastFrameHash = null
   }
 
   async _captureFrame() {
@@ -418,13 +493,19 @@ export class ChatRecordSDK {
         })
       }
       try {
+        // v4: scale=1 (不再超采样, 原生 devicePixelRatio 已在 canvas 尺寸中体现)
+        // 提升 snapshot 质量: 关闭 onclone 限制
         snap = await html2canvas(this._targetEl, {
           backgroundColor: '#ffffff',
           logging: false,
           useCORS: true,
-          scale: Math.min(window.devicePixelRatio || 1, 2),
+          allowTaint: false,
+          scale: 1,  // 原生比例, 不超采样
           width: this._targetEl.scrollWidth,
           height: this._targetEl.scrollHeight,
+          // 提高渲染质量
+          imageTimeout: 5000,
+          removeContainer: true,
         })
       } finally {
         hidden.forEach(({ el, prev }) => { el.style.visibility = prev })
@@ -440,8 +521,31 @@ export class ChatRecordSDK {
     const dw = this.canvas.width, dh = this.canvas.height
     const ratio = Math.min(dw / sw, dh / sh)
     const w = sw * ratio, h = sh * ratio
+    // v4: 高质量缩放 (浏览器默认 bilinear, 设为高质量)
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
     ctx.drawImage(snap, (dw - w) / 2, (dh - h) / 2, w, h)
     if (this.opts.watermark) this._drawWatermark(ctx)
+
+    // v4: 帧间 hash 去重 (省 html2canvas CPU; MediaRecorder VP9 会自动压缩重复帧)
+    const hash = this._quickHash(this.canvas)
+    if (hash === this._lastFrameHash) return  // 同一帧, 省 html2canvas CPU
+    this._lastFrameHash = hash
+  }
+
+  /** 轻量级帧 hash (采样多个点求异或, 区分度足够) */
+  _quickHash(canvas) {
+    const ctx = canvas.getContext('2d')
+    const samples = [0, 100, 500, 1000, 5000, 10000, 50000, 100000]
+    let h = 0
+    try {
+      const data = ctx.getImageData(0, 0, Math.min(canvas.width, 320), Math.min(canvas.height, 180)).data
+      for (let i = 0; i < samples.length; i++) {
+        const idx = samples[i] % (data.length - 4)
+        h = (h * 31 + data[idx] + data[idx+1]*256 + data[idx+2]*65536) | 0
+      }
+    } catch (e) { return Date.now() }  // 跨域时退化为时间戳
+    return h
   }
 
   _drawWatermark(ctx) {

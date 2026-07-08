@@ -110,8 +110,11 @@ export class ChatRecordSDK {
         }
         this.recordId = initResp.data.recordId
         this._resumed = !!initResp.data.resumed
-        console.log('[record] init: recordId=%d resumed=%s existingChunks=%d',
-          this.recordId, this._resumed, initResp.data.existingChunkCount || 0)
+        // 续录时 sequence 从 server 返回的 existingChunkCount 开始,
+        // 避免上传重复 sequence 触发 uk_record_seq 唯一约束
+        this._nextSequence = (initResp.data.existingChunkCount || 0)
+        console.log('[record] init: recordId=%d resumed=%s existingChunks=%d nextSeq=%d',
+          this.recordId, this._resumed, initResp.data.existingChunkCount || 0, this._nextSequence)
       } catch (e) {
         this.opts.onError(e)
         return false

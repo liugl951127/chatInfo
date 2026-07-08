@@ -132,6 +132,7 @@ public class RecordService {
 
     /**
      * 上传一个分片. 用 multipart/form-data 接收 binary (浏览器 MediaRecorder 直接送 Blob).
+     * 幂等: 同一 (recordId, sequenceNo) 重复上传返成功 (保证 SDK 重试 + 刷新后续录安全).
      */
     @Transactional
     public ApiResponse<Map<String, Object>> uploadChunk(Long recordId, Integer sequenceNo,
@@ -149,6 +150,23 @@ public class RecordService {
         }
         if (r.getEndedAt() != null) {
             return ApiResponse.fail(409, "record 已结束, 不接受新分片");
+        }
+
+        // 幂等检查: 同一 (record_id, sequence_no) 已存在 -> 返现有记录
+        QueryWrapper<ChatRecordChunk> dupQw = new QueryWrapper<>();
+        dupQw.eq("record_id", recordId).eq("sequence_no", sequenceNo).last("LIMIT 1");
+        ChatRecordChunk existing = chunkMapper.selectOne(dupQw);
+        if (existing != null) {
+            // 已存在: 如果字节大小一致 -> 幂等返回; 不一致 -> 冲突
+            Map<String, Object> data = new HashMap<>();
+            data.put("chunkId", existing.getId());
+            data.put("byteSize", existing.getByteSize());
+            data.put("totalBytes", r.getTotalBytes());
+            data.put("chunkCount", r.getChunkCount());
+            data.put("idempotent", true);
+            log.debug("[record] chunk upload idempotent: record={} seq={} existing={}",
+                recordId, sequenceNo, existing.getId());
+            return ApiResponse.ok(data);
         }
 
         byte[] bytes = file.getBytes();

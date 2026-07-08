@@ -262,22 +262,40 @@ public class SessionService {
     @Transactional
     public ApiResponse<Void> close(Long sessionId) {
         Long uid = UserContext.userId();
+        String role = UserContext.role();
         ChatSession s = sessionMapper.selectById(sessionId);
         if (s == null) return ApiResponse.fail(404, "会话不存在");
-        boolean ok = CommonConstants.ROLE_AGENT.equalsIgnoreCase(UserContext.role())
+        boolean ok = CommonConstants.ROLE_AGENT.equalsIgnoreCase(role)
                 ? uid.equals(s.getAgentId())
                 : uid.equals(s.getCustomerId());
         if (!ok) return ApiResponse.fail(403, "无权操作");
 
+        // 幂等: 已关闭的会话不重复推
+        if (CommonConstants.SESSION_CLOSED.equals(s.getStatus())) {
+            return ApiResponse.ok();
+        }
+
         s.setStatus(CommonConstants.SESSION_CLOSED);
         s.setClosedAt(LocalDateTime.now());
+        s.setLastMessage(CommonConstants.ROLE_AGENT.equalsIgnoreCase(role) ? "客服已结束会话" : "已结束会话");
         sessionMapper.updateById(s);
 
         if (s.getAgentId() != null) {
             redis.delete(CommonConstants.REDIS_AGENT_SESSION + s.getAgentId());
         }
         redis.delete(CommonConstants.REDIS_CUSTOMER_SESSION + s.getCustomerId());
-        auditLogService.log(uid, "CLOSE", String.valueOf(sessionId), null);
+
+        // 推送系统消息 (另一方能看到)
+        if (CommonConstants.ROLE_AGENT.equalsIgnoreCase(role) && s.getCustomerId() != null) {
+            messageService.sendSystemMessage(sessionId, "客服已结束本次会话");
+        } else if (CommonConstants.ROLE_CUSTOMER.equalsIgnoreCase(role) && s.getAgentId() != null) {
+            messageService.sendSystemMessage(sessionId, "客户已结束本次会话");
+        }
+        // 推 CLOSED 事件 (另一方刷新会话列表 + 清理当前)
+        String reason = CommonConstants.ROLE_AGENT.equalsIgnoreCase(role) ? "AGENT_CLOSE" : "CUSTOMER_CLOSE";
+        wsPushService.notifySessionClosed(sessionId, s.getCustomerId(), s.getAgentId(), reason);
+
+        auditLogService.log(uid, "CLOSE", String.valueOf(sessionId), "role=" + role);
         return ApiResponse.ok();
     }
 

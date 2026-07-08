@@ -12,6 +12,7 @@ public final class CommonConstants {
     public static final String ROLE_AGENT    = "AGENT";
     public static final String ROLE_ADMIN    = "ADMIN";
     public static final String ROLE_SYSTEM   = "SYSTEM";
+    public static final String ROLE_BOT      = "BOT";
 
     /** 会话状态 */
     public static final String SESSION_WAITING = "WAITING";
@@ -22,8 +23,10 @@ public final class CommonConstants {
     public static final String MSG_TEXT   = "TEXT";
     public static final String MSG_IMAGE  = "IMAGE";
     public static final String MSG_FILE   = "FILE";
+    public static final String MSG_VOICE  = "VOICE";
     public static final String MSG_SYSTEM = "SYSTEM";
     public static final String MSG_RECALL = "RECALL";
+    public static final String MSG_BOT    = "BOT";  // 机器人回复 (senderRole=BOT)
 
     /** 坐席状态 */
     public static final String AGENT_ONLINE = "ONLINE";

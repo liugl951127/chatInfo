@@ -48,6 +48,15 @@ public class SessionService {
      */
     @Transactional
     public ApiResponse<ChatSession> create(String skillTag) {
+        return create(skillTag, false);
+    }
+
+    /**
+     * 创建会话 (支持机器人模式).
+     *  - isBot=true: 客户进入机器人会话, agent_id 留空, is_bot=1, 直接 ACTIVE
+     *  - isBot=false: 走智能分配到人工坐席 (默认)
+     */
+    public ApiResponse<ChatSession> create(String skillTag, boolean isBot) {
         Long uid = UserContext.userId();
         if (uid == null) return ApiResponse.fail(401, "未登录");
 
@@ -62,8 +71,23 @@ public class SessionService {
         ChatSession s = new ChatSession();
         s.setSessionNo(generateSessionNo());
         s.setCustomerId(uid);
-        s.setStatus(CommonConstants.SESSION_WAITING);
         s.setSkillTag(skillTag);
+        s.setIsBot(isBot ? 1 : 0);
+
+        // 机器人模式: 直接 ACTIVE, 不分配坐席, 推欢迎语
+        if (isBot) {
+            s.setStatus(CommonConstants.SESSION_ACTIVE);
+            s.setLastMessage("智能客服在线, 请描述您的问题");
+            sessionMapper.insert(s);
+            messageService.sendSystemMessage(s.getId(),
+                "我是智能客服小助手, 可以帮您解答常见问题。\n输入 '人工' 可随时转接真人客服。");
+            auditLogService.log(uid, "CREATE_BOT_SESSION", String.valueOf(s.getId()),
+                "skill=" + skillTag);
+            return ApiResponse.ok(s);
+        }
+
+        // 人工模式: 等待分配
+        s.setStatus(CommonConstants.SESSION_WAITING);
         s.setLastMessage("等待客服接入...");
         sessionMapper.insert(s);
 
@@ -297,6 +321,41 @@ public class SessionService {
 
         auditLogService.log(uid, "CLOSE", String.valueOf(sessionId), "role=" + role);
         return ApiResponse.ok();
+    }
+
+    /**
+     * 客户主动转人工 (从机器人会话退出, 重新进队列).
+     * 状态: CLOSED 原机器人会话 + 新建一个 ACTIVE 等待分配的人工会话.
+     * 客户前端应刷新 /api/im/session/mine 看到新会话.
+     */
+    @Transactional
+    public ApiResponse<ChatSession> transferToHuman(Long sessionId, String skillTag) {
+        Long uid = UserContext.userId();
+        if (!CommonConstants.ROLE_CUSTOMER.equalsIgnoreCase(UserContext.role())) {
+            return ApiResponse.fail(403, "仅客户可调用");
+        }
+        ChatSession old = sessionMapper.selectById(sessionId);
+        if (old == null) return ApiResponse.fail(404, "会话不存在");
+        if (!uid.equals(old.getCustomerId())) return ApiResponse.fail(403, "无权操作");
+        if (CommonConstants.SESSION_CLOSED.equals(old.getStatus())) {
+            return ApiResponse.fail(409, "会话已关闭");
+        }
+
+        // 关闭当前机器人会话
+        old.setStatus(CommonConstants.SESSION_CLOSED);
+        old.setClosedAt(LocalDateTime.now());
+        old.setLastMessage("客户申请转人工");
+        sessionMapper.updateById(old);
+        if (old.getAgentId() != null) {
+            redis.delete(CommonConstants.REDIS_AGENT_SESSION + old.getAgentId());
+        }
+        redis.delete(CommonConstants.REDIS_CUSTOMER_SESSION + old.getCustomerId());
+
+        // 重新进人工队列 (用 create(..., false), 会有新 session id)
+        ApiResponse<ChatSession> fresh = create(skillTag != null ? skillTag : old.getSkillTag(), false);
+        auditLogService.log(uid, "TRANSFER_BOT_TO_HUMAN", String.valueOf(sessionId),
+            "newSession=" + (fresh.getData() != null ? fresh.getData().getId() : "?"));
+        return fresh;
     }
 
     /**

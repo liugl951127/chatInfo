@@ -30,10 +30,12 @@ public class SessionController {
     private final UnreadCounterService unreadCounterService;
     private final AgentStatusService agentStatusService;
 
-    @Operation(summary = "客户创建会话 (可指定技能)")
+    @Operation(summary = "客户创建会话 (可指定技能; mode=bot 选智能客服)")
     @PostMapping("/create")
-    public ApiResponse<ChatSession> create(@RequestParam(required = false) String skill) {
-        return sessionService.create(skill);
+    public ApiResponse<ChatSession> create(@RequestParam(required = false) String skill,
+                                           @RequestParam(required = false, defaultValue = "human") String mode) {
+        boolean isBot = "bot".equalsIgnoreCase(mode);
+        return sessionService.create(skill, isBot);
     }
 
     @Operation(summary = "坐席抢单")
@@ -88,6 +90,13 @@ public class SessionController {
     public ApiResponse<ChatSession> requestTransfer(@PathVariable Long sessionId,
                                                     @RequestParam(required = false) String preferredSkill) {
         return sessionService.customerRequestTransfer(sessionId, preferredSkill);
+    }
+
+    @Operation(summary = "机器人会话中申请转人工 (旧会话关闭, 新建一个人工会话)")
+    @PostMapping("/{sessionId}/transfer-to-human")
+    public ApiResponse<ChatSession> transferToHuman(@PathVariable Long sessionId,
+                                                    @RequestParam(required = false) String skill) {
+        return sessionService.transferToHuman(sessionId, skill);
     }
 
     @Operation(summary = "启动状态 (在线 + 离线数 + 未读总数)")

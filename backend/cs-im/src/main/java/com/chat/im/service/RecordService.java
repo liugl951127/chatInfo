@@ -319,7 +319,7 @@ public class RecordService {
         }
     }
 
-    private static String extOf(String mime) {
+private static String extOf(String mime) {
         if (mime == null) return ".bin";
         return switch (mime) {
             case "video/webm" -> ".webm";
@@ -327,5 +327,92 @@ public class RecordService {
             case "audio/webm" -> ".webm";
             default -> ".bin";
         };
+    }
+
+    /**
+     * 服务端 ffmpeg 合流所有录像分片 -> 单一 webm 文件.
+     * 流程:
+     *   1. 查询分片, 按 sequenceNo 排序, 生成 concat list 文件
+     *   2. ffmpeg -f concat -safe 0 -i list.txt -c copy output.webm
+     *   3. 缓存到 <root>/merged/{recordId}.webm (后续同 recordId 直接复用缓存)
+     * ffmpeg 不可用时返回 null (兑底交给前端 MSE 方案)
+     */
+    public java.nio.file.Path ffmpegMergeChunks(Long recordId) throws IOException, InterruptedException {
+        // 1) 查缓存
+        java.nio.file.Path mergedDir = rootDir.resolve("merged");
+        Files.createDirectories(mergedDir);
+        java.nio.file.Path cached = mergedDir.resolve(recordId + ".webm");
+        if (Files.exists(cached) && Files.size(cached) > 0) return cached;
+
+        // 2) 查分片
+        QueryWrapper<ChatRecordChunk> qw = new QueryWrapper<>();
+        qw.eq("record_id", recordId).orderByAsc("sequence_no");
+        List<ChatRecordChunk> chunks = chunkMapper.selectList(qw);
+        if (chunks.isEmpty()) return null;
+
+        // 3) 写 concat list
+        java.nio.file.Path listFile = mergedDir.resolve(recordId + ".list.txt");
+        try (java.io.BufferedWriter w = Files.newBufferedWriter(listFile)) {
+            for (ChatRecordChunk c : chunks) {
+                // ffmpeg concat 需要单引号包裹 + 转义
+                w.write("file '" + c.getStoragePath().replace("'", "'\\''") + "'");
+                w.newLine();
+            }
+        }
+
+        // 4) 找 ffmpeg
+        java.nio.file.Path ffmpegBin = locateFfmpeg();
+        if (ffmpegBin == null) {
+            log.warn("[record] ffmpeg not found in PATH; skip server-side merge");
+            return null;
+        }
+
+        // 5) ffmpeg concat + remux (同源 copy 极快, 无重编码)
+        java.util.List<String> cmd = java.util.Arrays.asList(
+            ffmpegBin.toString(),
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", listFile.toString(),
+            "-c", "copy",
+            cached.toString()
+        );
+        ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
+        pb.directory(mergedDir.toFile());
+        Process p = pb.start();
+        // 读取 stdout/stderr 避免阻塞
+        try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))) {
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (log.isDebugEnabled()) log.debug("[ffmpeg] {}", line);
+            }
+        }
+        int exit = p.waitFor();
+        if (exit != 0) {
+            log.error("[record] ffmpeg merge failed: record={} exit={}", recordId, exit);
+            return null;
+        }
+        log.info("[record] ffmpeg merge ok: record={} size={}", recordId, Files.size(cached));
+        // 清理 list 文件
+        try { Files.deleteIfExists(listFile); } catch (Exception e) {}
+        return cached;
+    }
+
+    private java.nio.file.Path locateFfmpeg() {
+        // 常见路径
+        String[] candidates = {"/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg"};
+        for (String c : candidates) {
+            java.nio.file.Path p = java.nio.file.Paths.get(c);
+            if (java.nio.file.Files.isExecutable(p)) return p;
+        }
+        // 试 which
+        try {
+            Process p = new ProcessBuilder("which", "ffmpeg").start();
+            try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()))) {
+                String line = r.readLine();
+                if (line != null && !line.isEmpty()) return java.nio.file.Paths.get(line.trim());
+            }
+        } catch (Exception e) {}
+        return null;
     }
 }

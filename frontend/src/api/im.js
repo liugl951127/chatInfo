@@ -2,7 +2,7 @@ import http from './axios'
 
 export const imApi = {
   // 会话
-  createSession: (skill) => http.post('/api/im/session/create', null, { params: { skill } }),
+  createSession: (skill, mode = 'human') => http.post('/api/im/session/create', null, { params: { skill, mode } }),
   claimSession:  () => http.post('/api/im/session/claim'),
   transferSession: (sessionId, toAgentId, reason) =>
     http.post(`/api/im/session/${sessionId}/transfer`, null, { params: { toAgentId, reason } }),
@@ -14,6 +14,8 @@ export const imApi = {
   customerExit: (id, reason) => http.post(`/api/im/session/${id}/exit`, null, { params: { reason } }),
   requestTransfer: (id, preferredSkill) =>
     http.post(`/api/im/session/${id}/request-transfer`, null, { params: { preferredSkill } }),
+  transferToHuman: (id, skill) =>
+    http.post(`/api/im/session/${id}/transfer-to-human`, null, { params: { skill } }),
   unread:        (sessionId) => http.get(`/api/im/session/${sessionId}/unread`),
 
   // 启动

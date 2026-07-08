@@ -33,6 +33,7 @@ public class MessageService {
     private final OfflineMessageStore offlineStore;
     private final UnreadCounterService unreadCounterService;
     private final WsPushService wsPushService;
+    // BotService 不需要注入, 静态方法调用 (避免循环依赖)
 
     /** 撤回窗口 (2 分钟) */
     private static final long RECALL_WINDOW_MS = 2 * 60 * 1000L;
@@ -79,6 +80,51 @@ public class MessageService {
         messagingTemplate.convertAndSendToUser(String.valueOf(senderId), "/queue/messages", in);
 
         log.debug("[msg] session={} from {} ({}) -> peer={}", sessionId, senderId, role, peerId);
+
+        // 机器人会话: 客户发消息后自动回复 (sender_role=BOT 推到 /queue/messages)
+        if (s.getAgentId() == null && CommonConstants.ROLE_CUSTOMER.equals(role)
+                && s.getIsBot() != null && s.getIsBot() == 1
+                && CommonConstants.MSG_TEXT.equals(m.getMsgType())) {
+            try {
+                String reply = BotService.reply(in.getContent());
+                if (reply != null) {
+                    // 模拟思考延迟 (50-200ms, 自然些)
+                    long delay = 50L + (long) (Math.random() * 150);
+                    Thread.sleep(delay);
+                    sendBotReply(sessionId, s.getCustomerId(), reply);
+                }
+            } catch (Exception e) {
+                log.warn("[bot] reply failed", e);
+            }
+        }
+    }
+
+    /**
+     * 发送机器人回复 (sender_role=BOT, msg_type=TEXT).
+     * 插入 chat_message, push 给客户 /queue/messages.
+     */
+    private void sendBotReply(Long sessionId, Long customerId, String content) {
+        ChatMessage bot = new ChatMessage();
+        bot.setSessionId(sessionId);
+        bot.setSenderId(0L);
+        bot.setSenderRole(CommonConstants.ROLE_BOT);
+        bot.setMsgType(CommonConstants.MSG_TEXT);
+        bot.setContent(content);
+        bot.setRecalled(0);
+        bot.setCreatedAt(LocalDateTime.now());
+        messageMapper.insert(bot);
+
+        MessageDTO dto = toDto(bot);
+        // 更新会话 lastMessage
+        ChatSession s = sessionMapper.selectById(sessionId);
+        if (s != null) {
+            s.setLastMessage("[机器人] " + truncate(content));
+            s.setUpdatedAt(LocalDateTime.now());
+            sessionMapper.updateById(s);
+        }
+        // 推给客户
+        messagingTemplate.convertAndSendToUser(String.valueOf(customerId), "/queue/messages", dto);
+        log.info("[bot] reply session={} customer={} len={}", sessionId, customerId, content.length());
     }
 
     /**
@@ -228,6 +274,40 @@ public class MessageService {
                 .eq(ChatMessage::getSessionId, sessionId)
                 .orderByAsc(ChatMessage::getCreatedAt)
                 .last("LIMIT " + n));
+        return ApiResponse.ok(rows.stream().map(this::toDto).toList());
+    }
+
+    /**
+     * 搜索会话内消息 (按关键字 + 可选时间范围).
+     *  - keyword: 匹配 content LIKE '%kw%' (中文也走 LIKE, MySQL 默认 utf8mb4_general_ci)
+     *  - fromTs/toTs: 毫秒时间戳
+     *  - limit: 最多返回条数 (默认 50, 上限 200)
+     */
+    public ApiResponse<List<MessageDTO>> search(Long sessionId, String keyword,
+                                                Long fromTs, Long toTs, Integer limit) {
+        Long uid = UserContext.userId();
+        ChatSession s = sessionMapper.selectById(sessionId);
+        if (s == null) return ApiResponse.fail(404, "会话不存在");
+        boolean allowed = uid.equals(s.getCustomerId()) || (s.getAgentId() != null && uid.equals(s.getAgentId()))
+                || CommonConstants.ROLE_ADMIN.equalsIgnoreCase(UserContext.role());
+        if (!allowed) return ApiResponse.fail(403, "无权查看");
+
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return ApiResponse.fail(400, "关键字不能为空");
+        }
+        int n = limit == null || limit <= 0 ? 50 : Math.min(limit, 200);
+
+        LambdaQueryWrapper<ChatMessage> q = new LambdaQueryWrapper<ChatMessage>()
+                .eq(ChatMessage::getSessionId, sessionId)
+                .like(ChatMessage::getContent, keyword.trim())
+                .orderByDesc(ChatMessage::getCreatedAt)
+                .last("LIMIT " + n);
+        if (fromTs != null) q.ge(ChatMessage::getCreatedAt,
+                java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(fromTs), java.time.ZoneId.systemDefault()));
+        if (toTs != null) q.le(ChatMessage::getCreatedAt,
+                java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(toTs), java.time.ZoneId.systemDefault()));
+
+        List<ChatMessage> rows = messageMapper.selectList(q);
         return ApiResponse.ok(rows.stream().map(this::toDto).toList());
     }
 

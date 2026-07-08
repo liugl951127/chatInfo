@@ -30,6 +30,8 @@ public class SessionView {
 
     /** 对端在线状态: true 在线 / false 离线 / null 未知 */
     private Boolean peerOnline;
+    /** 是否机器人会话 (0=人工 1=智能客服) */
+    private Integer isBot;
 
     public static SessionView from(ChatSession s, Boolean peerOnline) {
         SessionView v = new SessionView();
@@ -49,6 +51,7 @@ public class SessionView {
         v.updatedAt = s.getUpdatedAt();
         v.closedAt = s.getClosedAt();
         v.peerOnline = peerOnline;
+        v.isBot = s.getIsBot();
         return v;
     }
 }

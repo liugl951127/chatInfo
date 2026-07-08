@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: cs-im
+  main:
+    allow-circular-references: true  # 允许 MessageService<->BotService 互依 (Spring 6 默认禁, 这里是 last resort 豁免)
   servlet:
     multipart:
       max-file-size: 50MB

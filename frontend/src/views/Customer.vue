@@ -26,8 +26,13 @@
           <p>技能: <el-tag size="small">{{ session.skillTag || '通用' }}</el-tag></p>
           <p>状态: <el-tag size="small" :type="statusTagType">{{ statusText }}</el-tag></p>
           <p v-if="session.agentId">客服: #{{ session.agentId }}</p>
+          <p v-else-if="session.isBot === 1" style="color:#67c23a">🤖 智能客服</p>
           <div class="session-actions">
-            <el-button size="small" type="warning" plain :disabled="exiting || session.status === 'CLOSED'" @click="requestTransfer">
+            <el-button v-if="session.isBot === 1 && session.status !== 'CLOSED'"
+                       size="small" type="success" plain @click="botTransferToHuman">
+              转接人工
+            </el-button>
+            <el-button v-if="session.agentId" size="small" type="warning" plain :disabled="exiting || session.status === 'CLOSED'" @click="requestTransfer">
               转接客服
             </el-button>
             <el-button size="small" type="danger" plain :disabled="exiting || session.status === 'CLOSED'" @click="customerExit">
@@ -64,10 +69,11 @@
                 <div v-if="item.msgType === 'SYSTEM' || item.msgType === 'RECALL'" class="msg-system">
                   {{ item.content }}
                 </div>
-                <div v-else class="msg-row" :class="{ mine: item.senderId === userStore.id }">
-                  <div class="bubble">
+                <div v-else class="msg-row" :class="{ mine: item.senderId === userStore.id, bot: item.senderRole === 'BOT' }">
+                  <div class="bubble" :class="{ bot: item.senderRole === 'BOT' }">
                     <div class="meta">
-                      {{ item.senderRole === 'AGENT' ? '客服' : '我' }}
+                      <span v-if="item.senderRole === 'BOT'" class="bot-badge">🤖 智能客服</span>
+                      <span v-else>{{ item.senderRole === 'AGENT' ? '客服' : '我' }}</span>
                       · {{ formatTime(item.createdAt) }}
                       <span v-if="item.senderId === userStore.id && item.id && readMap[item.id]" class="read-tick" title="对方已读">
                         ✓✓
@@ -132,8 +138,18 @@
         <el-radio-button value="tech">技术</el-radio-button>
         <el-radio-button value="general">一般咨询</el-radio-button>
       </el-radio-group>
+      <el-divider><span style="font-size:13px;color:#909399">或选择客服模式</span></el-divider>
+      <el-radio-group v-model="chatMode" class="skill-group">
+        <el-radio-button value="human">🤝 人工客服</el-radio-button>
+        <el-radio-button value="bot">🤖 智能客服</el-radio-button>
+      </el-radio-group>
+      <p v-if="chatMode==='bot'" style="font-size:12px;color:#909399;margin:12px 0 0">
+        智能客服可解答常见问题, 随时输入 “人工” 转接真人客服。
+      </p>
       <template #footer>
-        <el-button type="primary" size="large" :loading="creating" @click="startSession">开始咨询</el-button>
+        <el-button type="primary" size="large" :loading="creating" @click="startSession">
+          {{ chatMode === 'bot' ? '开始智能咨询' : '开始咨询' }}
+        </el-button>
       </template>
     </el-dialog>
 
@@ -186,6 +202,7 @@ const peerTyping = ref('')
 
 const showSkillPicker = ref(false)
 const selectedSkill = ref('')
+const chatMode = ref('human')  // human | bot
 const creating = ref(false)
 
 const showRating = ref(false)
@@ -349,13 +366,16 @@ function previewImage(url) {
 async function startSession() {
   creating.value = true
   try {
-    session.value = await imApi.createSession(selectedSkill.value || null)
+    session.value = await imApi.createSession(selectedSkill.value || null, chatMode.value)
     messages.value = []
     showSkillPicker.value = false
     if (isMobile.value) drawerVisible.value = false
+    const isBot = session.value.isBot === 1
     appendMessage({
       msgType: 'SYSTEM', senderRole: 'SYSTEM',
-      content: session.value.status === 'WAITING' ? '已创建会话, 正在为您匹配客服...' : '客服已接入, 请开始提问',
+      content: isBot
+        ? '已连接智能客服, 请描述您的问题 (输入 “人工” 转接真人)'
+        : (session.value.status === 'WAITING' ? '已创建会话, 正在为您匹配客服...' : '客服已接入, 请开始提问'),
       createdAt: new Date().toISOString()
     }, true)
     scrollToBottom()
@@ -584,6 +604,33 @@ async function requestTransfer() {
 }
 
 /**
+ * 机器人会话中转人工 (关闭 bot 会话, 创建新人工会话).
+ */
+async function botTransferToHuman() {
+  if (!session.value || exiting.value) return
+  try {
+    const res = await imApi.transferToHuman(session.value.id, session.value.skillTag)
+    const newSession = res.data || res  // ApiResponse 包装
+    ElMessage.success('已为您转接人工客服, 请稍等接入')
+    drawerVisible.value = false
+    // 切到新人工会话
+    session.value = newSession
+    messages.value = []
+    appendMessage({
+      msgType: 'SYSTEM', senderRole: 'SYSTEM',
+      content: '已退出机器人会话, 正在为您匹配人工客服...',
+      createdAt: new Date().toISOString()
+    }, true)
+    // 机器人会话不录制 (文本), 但人工会话需要重新问询同意
+    if (recorder && recorder.recordId) {
+      await stopRecorder('TRANSFER_BOT_TO_HUMAN')
+    }
+  } catch (e) {
+    ElMessage.error('转人工失败: ' + (e?.message || '未知错误'))
+  }
+}
+
+/**
  * 停止录制 (处理成功或异常退出).
  */
 async function stopRecorder(reason = 'NORMAL') {
@@ -667,6 +714,16 @@ function logout() {
 
 .msg-row { display: flex; margin-bottom: 12px; }
 .msg-row.mine { justify-content: flex-end; }
+.msg-row.bot .bubble { background: #f0f9eb; border: 1px solid #e1f3d8; }
+.bot-badge {
+  display: inline-block;
+  background: #67c23a;
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-right: 4px;
+}
 .msg-system { text-align: center; color: #909399; font-size: 12px; margin: 8px 0; }
 .bubble {
   max-width: min(60%, 480px);

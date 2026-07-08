@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -102,6 +103,32 @@ public class RecordController {
             .header("X-Chunk-Sequence", String.valueOf(c.getSequenceNo()))
             .header("X-Chunk-Duration-Ms", String.valueOf(c.getDurationMs()))
             .body(res);
+    }
+
+    @Operation(summary = "服务端 ffmpeg 合流所有分片 (作为 MSE 不可用时的兑底, 或下载完整录像)")
+    @GetMapping("/{recordId}/merged")
+    public ResponseEntity<Resource> mergedRecord(@PathVariable Long recordId) throws IOException, InterruptedException {
+        ChatRecord r = recordService.recordEntity(recordId);
+        if (r == null) return ResponseEntity.notFound().build();
+        // 权限 (同上)
+        Long uid = UserContext.userId();
+        String role = UserContext.role();
+        com.chat.im.entity.ChatSession s = recordService.sessionForAuth(r.getSessionId(), uid, role);
+        boolean owner = r.getUserId().equals(uid);
+        boolean admin = CommonConstants.ROLE_ADMIN.equalsIgnoreCase(role);
+        if (!(owner || (s != null) || admin)) return ResponseEntity.status(403).build();
+
+        // 服务端合流 (ffmpeg 不可用时兑底为 503)
+        java.nio.file.Path merged = recordService.ffmpegMergeChunks(recordId);
+        if (merged == null) return ResponseEntity.status(503).build();
+        long size = java.nio.file.Files.size(merged);
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType("video/webm"))
+            .header(HttpHeaders.CONTENT_DISPOSITION,
+                "inline; filename=\"record-" + recordId + ".webm\"")
+            .header("X-File-Size", String.valueOf(size))
+            .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+            .body(new FileSystemResource(merged));
     }
 
     @Operation(summary = "查询某会话所有录像 (含元信息, 供回放页)")

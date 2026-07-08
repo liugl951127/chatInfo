@@ -55,6 +55,7 @@ CREATE TABLE `chat_session` (
   `agent_id`                 BIGINT           DEFAULT NULL,
   `skill_tag`                VARCHAR(32)      DEFAULT NULL        COMMENT '问题类型/技能标签',
   `status`                   VARCHAR(16)  NOT NULL DEFAULT 'WAITING' COMMENT 'WAITING/ACTIVE/CLOSED',
+  `is_bot`                   TINYINT      NOT NULL DEFAULT 0       COMMENT '0=人工 1=智能客服 (bot 会话)',
   `transferred_from_agent_id` BIGINT          DEFAULT NULL        COMMENT '转接前的坐席',
   `transfer_reason`          VARCHAR(500)     DEFAULT NULL,
   `last_message`             VARCHAR(500)     DEFAULT NULL,

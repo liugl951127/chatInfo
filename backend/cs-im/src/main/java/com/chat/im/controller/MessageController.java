@@ -49,6 +49,26 @@ public class MessageController {
         return messageService.history(sessionId, limit);
     }
 
+    @Operation(summary = "REST 发消息 (HTTP fallback, STOMP 离线/机器人调试场景)")
+    @PostMapping("/{sessionId}/message")
+    public ApiResponse<MessageDTO> sendRest(@PathVariable Long sessionId, @RequestBody MessageDTO msg) {
+        Long uid = com.chat.common.security.UserContext.userId();
+        String role = com.chat.common.security.UserContext.role();
+        if (uid == null || role == null) return ApiResponse.fail(401, "未登录");
+        messageService.handleIncoming(sessionId, msg, uid, role);
+        return ApiResponse.ok(msg);
+    }
+
+    @Operation(summary = "搜索会话内消息 (按关键字 + 可选时间范围)")
+    @GetMapping("/{sessionId}/search")
+    public ApiResponse<List<MessageDTO>> search(@PathVariable Long sessionId,
+                                                @RequestParam String keyword,
+                                                @RequestParam(required = false) Long fromTs,
+                                                @RequestParam(required = false) Long toTs,
+                                                @RequestParam(defaultValue = "50") Integer limit) {
+        return messageService.search(sessionId, keyword, fromTs, toTs, limit);
+    }
+
     @Operation(summary = "撤回消息 (2 分钟内)")
     @PostMapping("/message/{messageId}/recall")
     public ApiResponse<Void> recall(@PathVariable Long messageId) {

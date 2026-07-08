@@ -118,13 +118,11 @@ const videoEl = ref(null)
 onMounted(async () => {
   try {
     const r = await recordApi.sessionRecords(sessionId.value)
-    if (r.code !== 0) {
-      ElMessage.error('加载录像列表失败: ' + r.message)
-      return
-    }
-    records.value = r.data.records || []
+    // axios 拦截器已解包, r 直接是 {sessionId, records, chunks}
+    records.value = (r && r.records) || []
   } catch (e) {
-    ElMessage.error('加载录像列表失败')
+    console.error('加载录像列表失败', e)
+    ElMessage.error('加载录像列表失败: ' + (e?.message || '网络异常'))
   }
 })
 
@@ -147,15 +145,10 @@ async function rebuildBlob() {
   loading.value = true
   rebuilding.value = true
   try {
-    // 拉分片列表
-    const resp = await recordApi.recordChunks(current.value.id)
-    if (resp.code !== 0) {
-      ElMessage.error('分片列表拉取失败: ' + resp.message)
-      return
-    }
-    const chunks = resp.data
-    currentChunks.value = chunks
-    if (!chunks.length) {
+    // 拉分片列表 (axios 拦截器已解包, resp 直接是数组)
+    const chunks = await recordApi.recordChunks(current.value.id)
+    currentChunks.value = chunks || []
+    if (!chunks || !chunks.length) {
       ElMessage.warning('该录像没有分片')
       return
     }

@@ -20,7 +20,7 @@
           {{ connected ? '已连接' : (reconnecting ? '重连' : '断开') }}
         </el-tag>
         <el-badge :value="waitingCount" :hidden="waitingCount === 0" class="waiting-badge">
-          <el-button size="small" @click="claimOne" :disabled="!connected">抢单</el-button>
+          <el-button size="small" @click="claimOne()" :disabled="!connected">抢单</el-button>
         </el-badge>
         <el-button size="small" link @click="logout">退出</el-button>
       </div>
@@ -580,9 +580,14 @@ async function refreshWaiting() {
 }
 
 async function claimOne(sessionId = null) {
-  claimingId.value = sessionId
+  // v4 fix: Vue 3 的 @click="claimOne" 不传参会默认传 PointerEvent 当第一个参数
+  //         必须过滤非 number 类型, 否则会发到后端报错 [objectPointerEvent]
+  if (sessionId !== null && typeof sessionId !== 'number' && typeof sessionId !== 'string') {
+    sessionId = null
+  }
+  claimingId.value = typeof sessionId === 'number' ? sessionId : null
   try {
-    const s = sessionId
+    const s = sessionId != null
       ? await imApi.claimSession(sessionId)  // 手动接起指定会话 (防串线 CAS)
       : await imApi.claimSession()             // 从队列自动取下一个
     ElMessage.success(`已接入 ${s.sessionNo}`)

@@ -53,7 +53,9 @@
           </el-button>
         </div>
         <template v-else>
+          <!-- v4 fix: :key="session.id" 让 session 变化时强制重新挂载 DynamicScroller, 避免虚拟滚动内部状态交叉 -->
           <DynamicScroller
+            :key="session?.id || 'empty'"
             ref="messageListRef"
             :items="messages"
             :min-item-size="48"
@@ -674,8 +676,11 @@ function canRecall(msg) {
 }
 
 function appendMessage(m, skipScroll = false) {
+  // v4 fix: DynamicScroller key-field="id" 需要每个消息有唯一 id, 否则 key 重复导致
+  //        "Cannot set properties of null" 和 "instance.update is not a function"
+  if (!m.id) m.id = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   messages.value.push(m)
-  if (m.id && m.recalled) recalledMap.value[m.id] = true
+  if (m.recalled) recalledMap.value[m.id] = true
   if (!skipScroll) nextTick(scrollToBottom)
 }
 

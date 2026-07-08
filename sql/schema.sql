@@ -3,6 +3,13 @@
 -- MySQL 8.0+ / MariaDB 10.5+
 -- 字符集: utf8mb4 / 排序: utf8mb4_unicode_ci
 --
+-- v4.0 修复: 头部加 SET NAMES utf8mb4
+--   - 避免 mariadb < file 默认 charset 是 latin1 造成 UTF-8 双编码 (中文变乱码)
+--   - 必须保证文件本身是 UTF-8 (VSCode 右下角检查)
+--
+
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
 -- v2.0.0 (基础 + 企业特性):
 --   - 坐席技能 (skill_tags) + 技能路由
 --   - 会话转接 (transferred_from_agent_id / transfer_reason)

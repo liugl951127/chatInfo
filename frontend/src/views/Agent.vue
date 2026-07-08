@@ -114,7 +114,9 @@
               <el-button v-else size="small" type="danger" plain @click="closeSession">×</el-button>
             </div>
           </div>
+          <!-- v4 fix: :key 让 session 变化时强制重新挂载, 避免虚拟滚动崩溃 -->
           <DynamicScroller
+            :key="current?.id || 'empty'"
             ref="messageListRef"
             :items="messages"
             :min-item-size="48"
@@ -682,6 +684,8 @@ function sendTyping(typing) {
 
 function appendMessage(m) {
   if (current.value && m.sessionId !== current.value.id) return
+  // v4 fix: 避免 DynamicScroller key 重复导致崩
+  if (!m.id) m.id = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   messages.value.push(m)
   nextTick(scrollToBottom)
 }

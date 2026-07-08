@@ -35,10 +35,14 @@ public class RecordController {
 
     private final RecordService recordService;
 
-    @Operation(summary = "开始录制 (consent 必须为 true)")
+    @Operation(summary = "开始录制 (consent 必须为 true). 若传 resumeRecordId 则续上未结束的 record.")
     @PostMapping("/init")
     public ApiResponse<Map<String, Object>> init(@RequestParam Long sessionId,
-                                                 @RequestParam Boolean consent) {
+                                                 @RequestParam Boolean consent,
+                                                 @RequestParam(required = false) Long resumeRecordId) {
+        if (resumeRecordId != null) {
+            return recordService.resume(sessionId, resumeRecordId);
+        }
         return recordService.init(sessionId, consent);
     }
 

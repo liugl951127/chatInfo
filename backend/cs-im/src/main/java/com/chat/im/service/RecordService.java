@@ -93,6 +93,44 @@ public class RecordService {
     }
 
     /**
+     * 续录: 复用指定未结束的 record (同一用户, 同一会话).
+     * 场景: 客户刷新页面 / 切换后台后返回 -> 继续追加分片到同一条录像.
+     * 复用条件: record 存在 + 未结束 + 同 session + 同 user.
+     */
+    @Transactional
+    public ApiResponse<Map<String, Object>> resume(Long sessionId, Long resumeRecordId) {
+        Long uid = UserContext.userId();
+        String role = UserContext.role();
+        ChatRecord r = recordMapper.selectById(resumeRecordId);
+        if (r == null) {
+            return ApiResponse.fail(404, "录像不存在");
+        }
+        if (!r.getUserId().equals(uid)) {
+            audit(uid, role, "RECORD_FORBIDDEN", String.valueOf(resumeRecordId), "续录拒绝: 非本人 record");
+            return ApiResponse.fail(403, "无权续录该 record");
+        }
+        if (!r.getSessionId().equals(sessionId)) {
+            return ApiResponse.fail(400, "录像与会话不匹配");
+        }
+        if (r.getEndedAt() != null) {
+            // 已结束的 record 不能续, 但可以新建
+            return ApiResponse.fail(409, "录像已结束, 请新建");
+        }
+        log.info("[record] resume: user={} session={} record={} chunks={}",
+            uid, sessionId, resumeRecordId, r.getChunkCount());
+        audit(uid, role, "RECORD_RESUME", String.valueOf(resumeRecordId),
+            "session=" + sessionId + " existingChunks=" + r.getChunkCount());
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("recordId", r.getId());
+        data.put("storagePath", storagePath);
+        data.put("resumed", true);
+        data.put("existingChunkCount", r.getChunkCount());
+        data.put("existingTotalBytes", r.getTotalBytes());
+        return ApiResponse.ok(data);
+    }
+
+    /**
      * 上传一个分片. 用 multipart/form-data 接收 binary (浏览器 MediaRecorder 直接送 Blob).
      */
     @Transactional

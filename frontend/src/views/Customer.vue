@@ -221,6 +221,8 @@ onMounted(async () => {
     if (active) {
       session.value = active
       await loadHistory()
+      // 找到现有会话 -> 启动 / 续录 (企业级连续录制)
+      tryRecorder().catch(() => {})
     }
   } catch {}
   try {
@@ -232,10 +234,13 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stomp?.disconnect()
-  // 主动结束录制 (正常结束: USER_STOP; 其他会话关闭原因是 NORMAL)
-  if (recorder && recorder.recordId) {
-    recorder.stop('USER_STOP').catch(() => {})
-  }
+  // v3: 不在这里 stop recorder.
+  // 让 SDK 走 _onUnload 兑底 (fetch keepalive 同步上传分片, 不调 /end),
+  // 这样页面刷新后能续上同一条 record.
+  // 真正的 /end 只在:
+  //   - customerExit() 客户主动退出会话
+  //   - closeSession() 客户结束会话 (会弹 CSAT)
+  //   - 服务端推送 CLOSED 事件 (onEvent 中处理)
 })
 
 onUnmounted(() => {
@@ -355,25 +360,42 @@ async function startSession() {
  */
 async function tryRecorder() {
   if (!session.value) return
-  let ok = false
+  if (recorder && recorder.recordId) return  // 已在录 (避免重复 start)
+
+  // v3: 检查是否有可续的 record (上次刷新/切后台后留下的未结束 record)
+  let existingRecordId = null
   try {
-    await ElMessageBox.confirm(
-      '为了服务质量与合规要求, 我们会对本次会话页面进行视频录制 (包括聊天内容和页面操作), 仅供内部审计/质量回溯使用。',
-      '开始会话前需告知',
-      {
-        confirmButtonText: '同意并开始',
-        cancelButtonText: '不同意 (将不能发起会话)',
-        type: 'warning',
-      }
-    )
-    ok = true
-  } catch {
-    ok = false  // 用户取消
+    const resp = await recordApi.sessionRecords(session.value.id)
+    const records = (resp && resp.records) || []
+    const candidate = records.find(r => !r.endedAt && r.userId === userStore.id)
+    if (candidate) existingRecordId = candidate.id
+  } catch (e) {
+    console.warn('[record] failed to query resumable records', e)
   }
-  if (!ok) {
-    ElMessage.warning('您未同意录制, 为合规要求, 建议退出当前会话')
-    return
+
+  // 有续录对象 -> 不弹同意框 (用户已对当前会话同意过, 续上是自然过程)
+  if (!existingRecordId) {
+    let ok = false
+    try {
+      await ElMessageBox.confirm(
+        '为了服务质量与合规要求, 我们会对本次会话页面进行视频录制 (包括聊天内容和页面操作), 仅供内部审计/质量回溯使用。\n\n注: 录制会在您切换页面、切后台后自动恢复, 仅在主动退出时才结束。',
+        '开始会话前需告知',
+        {
+          confirmButtonText: '同意并开始',
+          cancelButtonText: '不同意 (将不能发起会话)',
+          type: 'warning',
+        }
+      )
+      ok = true
+    } catch {
+      ok = false  // 用户取消
+    }
+    if (!ok) {
+      ElMessage.warning('您未同意录制, 为合规要求, 建议退出当前会话')
+      return
+    }
   }
+
   recorder = new ChatRecordSDK({
     apiBase: '/api/im/record',
     api: recordApi,
@@ -382,12 +404,14 @@ async function tryRecorder() {
     userId: userStore.id,
     nickname: userStore.nickname || userStore.username || '',
     target: '.customer-shell',
-    fps: 4,                  // 4 fps 够顺, 不损耗过多带宽
+    fps: 4,
     chunkDurationMs: 5000,
     bitrate: 500_000,
     watermark: true,
     brandText: '本会话已开启录制 — 用于服务回溯',
     ignoreSelector: '.no-record',
+    existingRecordId,  // v3: 续上之前未结束的 record (若有)
+    pauseOnHidden: true,  // v3: 切后台自动暂停
     onError: (e) => console.error('[record]', e),
     onState: (s) => console.log('[record] state =', s),
   })
@@ -481,6 +505,8 @@ async function closeSession() {
     pendingRatingSessionId.value = session.value.id
     showRating.value = true
     drawerVisible.value = false
+    // 客户点了结束会话 -> 显式停录制
+    await stopRecorder('NORMAL')
   } catch {}
 }
 

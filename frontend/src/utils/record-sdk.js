@@ -1,13 +1,14 @@
 // chat-record-sdk.js
 // 客户聊天页面视频录制 SDK (合规要求: 用于回溯/审计).
 //
-// v2 调整:
-//  - 帧率默认从 2 -> 4 fps, 码率 250k -> 500k, 观感更顺
-//  - 每帧右上角加实时水印: 时间戳 (本地) + 录像 ID + 会话 ID + 用户 ID
-//  - 每帧顶部贴上业务水印 (可选) — 比如公司名 / 警示语
-//  - 分片上传可携带元信息到后端 audit (init 时已带 consent)
-//  - DOM 快照前隐藏敏感元素 (.no-record), 比如密码输入框
-//  - html2canvas 失败不中断整段录制, 只丢一帧
+// v3 调整 (企业级连续录制):
+//  - existingRecordId 参数: 续录模式, 跳过 init, 复用已有 record
+//  - start() 自动检测 localStorage 中保存的 recordId 并尝试续录
+//  - 切后台 (visibilitychange=hidden): pause (停 MediaRecorder, 不调 /end, 仅 flush)
+//  - 切回前台 (visibilitychange=visible): 自动 resume (新建 MediaRecorder, 复用 recordId)
+//  - 页面卸载 (beforeunload/pagehide): 仅 flush pending chunks, 不调 /end
+//    -> 录像保持 active 状态, 下次进来能继续续
+//  - 仅 SDK.stop(reason) 显式调用时才调 /end (主动退出场景)
 
 import html2canvas from 'html2canvas'
 
@@ -15,29 +16,33 @@ const DEFAULT_FPS = 4
 const DEFAULT_CHUNK_MS = 5000
 const DEFAULT_BITRATE = 500_000
 const MAX_RETRIES = 3
+const STORAGE_KEY_PREFIX = 'chat_record:'
 
 export class ChatRecordSDK {
   constructor(opts) {
     this.opts = {
-      apiBase: opts.apiBase,                         // e.g. /api/im/record
-      token: opts.token,                             // Bearer token
-      sessionId: opts.sessionId,                     // 当前会话 id
-      userId: opts.userId,                           // 当前用户 id
-      nickname: opts.nickname || '',                 // 当前用户昵称 (水印用)
-      target: opts.target || document.body,          // 要录制的 DOM 元素
+      apiBase: opts.apiBase,
+      token: opts.token,
+      sessionId: opts.sessionId,
+      userId: opts.userId,
+      nickname: opts.nickname || '',
+      target: opts.target || document.body,
       fps: opts.fps || DEFAULT_FPS,
       chunkDurationMs: opts.chunkDurationMs || DEFAULT_CHUNK_MS,
       bitrate: opts.bitrate || DEFAULT_BITRATE,
-      watermark: opts.watermark !== false,           // 是否加水印
-      brandText: opts.brandText || '会话回溯录制',   // 顶部品牌水印
+      watermark: opts.watermark !== false,
+      brandText: opts.brandText || '会话回溯录制',
       indicatorText: opts.indicatorText || '录制中',
-      ignoreSelector: opts.ignoreSelector || '.no-record', // 录制时隐藏的元素
-      api: opts.api,                                 // 可选: 外部传入的 recordApi 实例
-      onConsentRequired: opts.onConsentRequired,     // () => Promise<boolean> 让业务方弹同意框
+      ignoreSelector: opts.ignoreSelector || '.no-record',
+      api: opts.api,
+      // v3 新增:
+      existingRecordId: opts.existingRecordId || null,  // 续录: 跳过 init
+      pauseOnHidden: opts.pauseOnHidden !== false,      // 切后台自动暂停
+      onConsentRequired: opts.onConsentRequired,
       onError: opts.onError || ((e) => console.error('[record]', e)),
       onState: opts.onState || (() => {}),
     }
-    this.recordId = null
+    this.recordId = this.opts.existingRecordId  // 续录模式: 直接使用
     this.recorder = null
     this.canvas = null
     this.stream = null
@@ -45,68 +50,209 @@ export class ChatRecordSDK {
     this.chunkQueue = []
     this.uploadPromise = Promise.resolve()
     this._stopping = false
+    this._explicitStop = false  // 是否 SDK.stop() 显式调用 (true -> /end)
+    this._paused = false
     this._consentGiven = false
     this._unloadHandler = null
     this._visibilityHandler = null
     this._indicator = null
     this._recStartTs = 0
+    this._resumed = false
   }
 
   /**
-   * 启动录制 (会先询问用户同意). 返回 Promise<boolean> 表示是否启动成功.
+   * 启动录制. 若 existingRecordId 已设, 跳过 init 直接进入 MediaRecorder 阶段.
+   * 同意弹窗只在 NEW record 时弹出, 续录时不再弹 (用户已对当前会话同意过).
    */
   async start() {
-    if (this.recordId) {
+    if (this.recorder && this.recorder.state === 'recording') {
       console.warn('[record] SDK 已经在录制中')
       return false
     }
-    if (!this.opts.apiBase || !this.opts.token || !this.opts.sessionId) {
-      this.opts.onError(new Error('SDK 缺少必要参数 (apiBase/token/sessionId)'))
+    if (!this.opts.apiBase && !this.opts.api) {
+      this.opts.onError(new Error('SDK 缺少必要参数 (apiBase 或 api)'))
+      return false
+    }
+    if (!this.opts.token || !this.opts.sessionId) {
+      this.opts.onError(new Error('SDK 缺少必要参数 (token/sessionId)'))
       return false
     }
 
-    // 1. 业务方展示同意框; 用户同意后回调 resolve(true)
-    if (typeof this.opts.onConsentRequired === 'function') {
-      try {
-        const ok = await this.opts.onConsentRequired()
-        if (!ok) {
-          this.opts.onState('denied')
+    // 续录模式: 跳过同意弹窗 + 跳过 init
+    if (this.recordId && this._isRecordAlive(this.recordId)) {
+      console.log('[record] 续录 recordId=%d', this.recordId)
+      this._resumed = true
+    } else {
+      // 新建模式: 弹同意框 (业务方提供) -> 调 init
+      if (typeof this.opts.onConsentRequired === 'function') {
+        try {
+          const ok = await this.opts.onConsentRequired()
+          if (!ok) {
+            this.opts.onState('denied')
+            return false
+          }
+        } catch (e) {
+          this.opts.onError(e)
           return false
         }
+      }
+      this._consentGiven = true
+
+      try {
+        const initResp = await this._callApi('init', {
+          sessionId: this.opts.sessionId,
+          consent: true,
+          resumeRecordId: this.opts.existingRecordId || undefined,
+        })
+        if (initResp.code !== 0) {
+          this.opts.onError(new Error('init failed: ' + initResp.message))
+          return false
+        }
+        this.recordId = initResp.data.recordId
+        this._resumed = !!initResp.data.resumed
+        console.log('[record] init: recordId=%d resumed=%s existingChunks=%d',
+          this.recordId, this._resumed, initResp.data.existingChunkCount || 0)
       } catch (e) {
         this.opts.onError(e)
         return false
       }
     }
-    this._consentGiven = true
 
-    // 2. 后端 init (consent=true 才会真创建 record)
+    // 续上 recordId 后, 下一个 sequenceNo = 当前 chunk 数
+    this._nextSequence = this.chunkQueue.length
+    this._recStartTs = Date.now()
+    this._stopping = false
+    this._explicitStop = false
+    this._paused = false
+
+    // 持久化 recordId (用于页面刷新后续录)
+    this._saveRecordId(this.recordId)
+
+    this._mountIndicator()
+    this._initCanvas()
+    this._startCaptureLoop()
+    this._startMediaRecorder()
+
+    this._wireLifecycleHooks()
+
+    this.opts.onState(this._resumed ? 'resumed' : 'recording')
+    return true
+  }
+
+  /**
+   * 显式停止录制 (用户主动结束会话 / 主动退出时调用).
+   * 会调 /end 标记录像结束. 后续 /chunk 会拒绝 (record.ended_at 已设).
+   */
+  async stop(reason = 'NORMAL') {
+    if (this._stopping) return
+    this._stopping = true
+    this._explicitStop = true
+    this.opts.onState('stopping')
+
+    this._unmountIndicator()
+    this._teardownRecorder()
+
     try {
-      const initResp = await this._callApi('init', { sessionId: this.opts.sessionId, consent: true })
-      if (initResp.code !== 0) {
-        this.opts.onError(new Error('init failed: ' + initResp.message))
-        return false
-      }
-      this.recordId = initResp.data.recordId
+      await this.uploadPromise
     } catch (e) {
-      this.opts.onError(e)
-      return false
+      console.warn('[record] upload queue has failures:', e)
     }
 
-    this._recStartTs = Date.now()
+    // 只在显式 stop 时才调 /end (让录像标记为结束)
+    try {
+      if (this.recordId) {
+        await this._callApi('end', { recordId: this.recordId, endReason: reason })
+      }
+    } catch (e) {
+      this.opts.onError(e)
+    }
 
-    // 3. 挂可见录制指示器 (合规要求)
+    // 清理持久化的 recordId
+    this._clearRecordId(this.recordId)
+    this.opts.onState('stopped')
+  }
+
+  /**
+   * 内部: 切后台/页面隐藏 -> 暂停录制 (不调 /end, 录像保持 active 可续).
+   */
+  _pauseRecording() {
+    if (this._paused || this._stopping || !this.recorder) return
+    this._paused = true
+    this.opts.onState('paused')
+    this._teardownRecorder()
+    this._unmountIndicator()  // 隐藏指示器 (后台时没必要显示)
+    // 不停 uploadPromise, 让它继续跑
+  }
+
+  /**
+   * 内部: 切回前台 -> 恢复录制 (复用同一 recordId).
+   */
+  async _resumeRecording() {
+    if (!this._paused || this._stopping || !this.recordId) return
+    this._paused = false
     this._mountIndicator()
-
-    // 4. 创建 offscreen canvas + stream
     this._initCanvas()
+    this._startCaptureLoop()
+    this._startMediaRecorder()
+    this.opts.onState('resumed')
+  }
 
-    // 5. 周期捕获 DOM -> canvas (带水印)
+  /**
+   * 内部: 页面卸载 (beforeunload/pagehide) -> 仅 flush pending chunks, 不调 /end.
+   * 录像保持 active, 下一进来能续.
+   */
+  _onUnload() {
+    if (this._stopping) return
+    // 停 MediaRecorder, 触发最后一次 ondataavailable
+    try { if (this.recorder?.state !== 'inactive') this.recorder.stop() } catch (e) {}
+    // 同步 flush 用 fetch keepalive (比 sendBeacon 更可靠, 支持 multipart + 较大 body)
+    const pending = this.chunkQueue.filter(c => !c.uploaded)
+    for (const c of pending) {
+      try {
+        const fd = new FormData()
+        fd.append('file', c.blob, c.sequence + '.webm')
+        const url = this._buildUrl('/chunk', {
+          recordId: this.recordId,
+          sequenceNo: c.sequence,
+          durationMs: c.duration,
+        })
+        // keepalive 让请求在页面 unload 后继续, 比 sendBeacon 更可靠
+        fetch(url, {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + this.opts.token },
+          body: fd,
+          keepalive: true,
+        }).then(() => { c.uploaded = true }).catch(() => {})
+      } catch (e) {
+        console.warn('[record] keepalive upload failed', e)
+      }
+    }
+    // 不调 /end, 让录像保持 active
+  }
+
+  _wireLifecycleHooks() {
+    this._unloadHandler = () => this._onUnload()
+    window.addEventListener('beforeunload', this._unloadHandler)
+    window.addEventListener('pagehide', this._unloadHandler)
+    this._visibilityHandler = () => {
+      if (!this.opts.pauseOnHidden) return
+      if (document.visibilityState === 'hidden') {
+        this._pauseRecording()
+      } else if (document.visibilityState === 'visible' && this._paused) {
+        this._resumeRecording()
+      }
+    }
+    document.addEventListener('visibilitychange', this._visibilityHandler)
+  }
+
+  _startCaptureLoop() {
+    if (this.captureTimer) clearInterval(this.captureTimer)
     this.captureTimer = setInterval(() => {
       this._captureFrame().catch(() => {})
     }, Math.max(80, Math.floor(1000 / this.opts.fps)))
+  }
 
-    // 6. MediaRecorder
+  _startMediaRecorder() {
     try {
       this.stream = this.canvas.captureStream(this.opts.fps)
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
@@ -115,112 +261,29 @@ export class ChatRecordSDK {
       this.recorder = new MediaRecorder(this.stream, { mimeType, videoBitsPerSecond: this.opts.bitrate })
     } catch (e) {
       this.opts.onError(e)
-      this._teardown(false)
-      return false
+      return
     }
 
     this.recorder.ondataavailable = (ev) => {
       if (ev.data && ev.data.size > 0) {
-        const seq = this.chunkQueue.length
+        const seq = this._nextSequence++
         this.chunkQueue.push({ blob: ev.data, sequence: seq, duration: this.opts.chunkDurationMs, uploaded: false })
         this.uploadPromise = this.uploadPromise.then(() => this._uploadOne(ev.data, seq))
       }
     }
     this.recorder.onerror = (ev) => this.opts.onError(ev.error || ev)
     this.recorder.start(this.opts.chunkDurationMs)
-
-    // 7. 监听页面关闭 / 隐藏
-    this._unloadHandler = () => this._onUnload(false)
-    window.addEventListener('beforeunload', this._unloadHandler)
-    window.addEventListener('pagehide', this._unloadHandler)
-    this._visibilityHandler = () => {
-      if (document.visibilityState === 'hidden' && this.recorder?.state === 'recording') {
-        this._onUnload(true)
-      }
-    }
-    document.addEventListener('visibilitychange', this._visibilityHandler)
-
-    this.opts.onState('recording')
-    return true
   }
 
-  /**
-   * 主动停止录制.
-   *  reason: USER_STOP (业务主动停) / NORMAL (会话关闭) 等.
-   */
-  async stop(reason = 'NORMAL') {
-    if (this._stopping || !this.recordId) return
-    this._stopping = true
-    this.opts.onState('stopping')
-
-    // 1. 停止 MediaRecorder, 触发最后 ondataavailable
+  _teardownRecorder() {
+    if (this.captureTimer) { clearInterval(this.captureTimer); this.captureTimer = null }
     if (this.recorder && this.recorder.state !== 'inactive') {
-      try {
-        await new Promise((resolve) => {
-          this.recorder.onstop = resolve
-          this.recorder.stop()
-        })
-      } catch (e) {
-        this.opts.onError(e)
-      }
+      try { this.recorder.stop() } catch (e) {}
     }
-
-    // 2. 等待所有在飞分片完成上传
-    try {
-      await this.uploadPromise
-    } catch (e) {
-      console.warn('[record] upload queue has failures:', e)
+    if (this.stream) {
+      this.stream.getTracks().forEach(t => t.stop())
+      this.stream = null
     }
-
-    // 3. 调 end 接口
-    try {
-      await this._callApi('end', { recordId: this.recordId, endReason: reason })
-    } catch (e) {
-      this.opts.onError(e)
-    }
-
-    this._teardown(true)
-    this.opts.onState('stopped')
-  }
-
-  /**
-   * 内部: 页面卸载 / 隐藏时的兜底. 同步发最后一个分片 + 结束标记.
-   */
-  _onUnload(hiddenOnly = false) {
-    if (!this.recordId || this._stopping) return
-    this._stopping = true
-
-    // 1. MediaRecorder 立即停
-    try {
-      if (this.recorder?.state !== 'inactive') this.recorder.stop()
-    } catch (e) {}
-
-    // 2. 把 queue 里的最后一个分片用 sendBeacon 发出去 (不阻塞页面卸载)
-    const pending = this.chunkQueue.filter(c => !c.uploaded)
-    for (const c of pending) {
-      try {
-        const fd = new FormData()
-        fd.append('file', c.blob, c.sequence + '.webm')
-        // sendBeacon 没法自定义 header, 走 query 带 token
-        const url = this.opts.apiBase + '/chunk?recordId=' + this.recordId +
-                    '&sequenceNo=' + c.sequence + '&durationMs=' + c.duration +
-                    '&_bearer=' + encodeURIComponent(this.opts.token)
-        navigator.sendBeacon(url, fd)
-        c.uploaded = true
-      } catch (e) {
-        console.warn('[record] sendBeacon chunk failed', e)
-      }
-    }
-
-    // 3. end 也用 sendBeacon
-    try {
-      const reason = 'PAGE_CLOSE'
-      const url = this.opts.apiBase + '/end?recordId=' + this.recordId +
-                  '&endReason=' + reason + '&_bearer=' + encodeURIComponent(this.opts.token)
-      navigator.sendBeacon(url)
-    } catch (e) {}
-
-    // 注: 不调 _teardown, 因为页面马上要销毁
   }
 
   async _uploadOne(blob, sequence) {
@@ -248,27 +311,23 @@ export class ChatRecordSDK {
 
   async _callApi(name, args) {
     if (this.opts.api && typeof this.opts.api[name] === 'function') {
-      // 走 recordApi 实例 (自动处理鉴权 + 错误)
       const r = await this.opts.api[name](...Object.values(args))
-      // recordApi.init/end/listBySession 等返回的是 data.data (http 拦截器已解)
-      // uploadChunk 同; downloadChunkBlob 返回 blob
       if (r && typeof r === 'object' && 'code' in r) return r
       return { code: 0, data: r }
     }
-    // 兑底: 裸 fetch
     return await this._rawFetch(name, args)
   }
 
   async _rawFetch(name, args) {
     let url, init
     if (name === 'init') {
-      url = this.opts.apiBase + '/init?sessionId=' + args.sessionId + '&consent=' + args.consent
+      url = this._buildUrl('/init', { sessionId: args.sessionId, consent: args.consent })
       init = { method: 'POST', headers: { Authorization: 'Bearer ' + this.opts.token } }
     } else if (name === 'end') {
-      url = this.opts.apiBase + '/end?recordId=' + args.recordId + '&endReason=' + encodeURIComponent(args.endReason)
+      url = this._buildUrl('/end', { recordId: args.recordId, endReason: args.endReason })
       init = { method: 'POST', headers: { Authorization: 'Bearer ' + this.opts.token } }
     } else if (name === 'uploadChunk') {
-      url = this.opts.apiBase + '/chunk?recordId=' + args.recordId + '&sequenceNo=' + args.sequenceNo + '&durationMs=' + args.durationMs
+      url = this._buildUrl('/chunk', { recordId: args.recordId, sequenceNo: args.sequenceNo, durationMs: args.durationMs })
       const fd = new FormData(); fd.append('file', args.file, args.sequenceNo + '.webm')
       init = { method: 'POST', headers: { Authorization: 'Bearer ' + this.opts.token }, body: fd }
     } else {
@@ -278,12 +337,62 @@ export class ChatRecordSDK {
     return await r.json()
   }
 
+  _buildUrl(path, params) {
+    const qs = Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
+    return this.opts.apiBase + path + '?' + qs
+  }
+
+  // ===== localStorage 持久化 (用于页面刷新后续录) =====
+  _storageKey() { return STORAGE_KEY_PREFIX + this.opts.sessionId + ':' + this.opts.userId }
+
+  _saveRecordId(rid) {
+    try {
+      const map = JSON.parse(localStorage.getItem(this._storageKey()) || '{}')
+      map.recordId = rid
+      map.startedAt = Date.now()
+      localStorage.setItem(this._storageKey(), JSON.stringify(map))
+    } catch (e) { /* localStorage 不可用, 不影响录制 */ }
+  }
+
+  _clearRecordId(rid) {
+    try {
+      const map = JSON.parse(localStorage.getItem(this._storageKey()) || '{}')
+      if (!rid || map.recordId === rid) localStorage.removeItem(this._storageKey())
+    } catch (e) {}
+  }
+
+  /**
+   * 检查 recordId 是否仍然有效 (未被 /end 标记结束).
+   * 用 SDK 暴露的 API, 因为后端有 list 接口.
+   */
+  _isRecordAlive(rid) {
+    // 这里采用乐观策略: 只要 SDK opts 显式传了 existingRecordId, 就认为可续.
+    // 后端 /init?resumeRecordId=... 会做真正的权限/状态校验.
+    return !!rid
+  }
+
+  /**
+   * 静态方法: 给定 sessionId/userId/token, 查后端是否有可续的 record.
+   * Customer.vue 在挂载时会调用这个, 自动给 SDK 传 existingRecordId.
+   */
+  static async findResumable(api, sessionId, userId) {
+    try {
+      const resp = await api.sessionRecords(sessionId)
+      const records = (resp && resp.records) || []
+      // 找同会话、同一用户、未结束、最近的那条
+      const candidate = records.find(r => !r.endedAt && r.userId === userId)
+      return candidate ? candidate.id : null
+    } catch (e) {
+      return null
+    }
+  }
+
+  // ===== DOM capture + 水印 (同 v2) =====
   _initCanvas() {
     const target = typeof this.opts.target === 'string'
       ? document.querySelector(this.opts.target)
       : this.opts.target
     const rect = (target.getBoundingClientRect && target.getBoundingClientRect()) || { width: 800, height: 600 }
-    // 限制最大边避免在高分屏上爆显存
     const maxW = 1280, maxH = 800
     const ratio = Math.min(maxW / rect.width, maxH / rect.height, 1)
     this.canvas = document.createElement('canvas')
@@ -295,9 +404,9 @@ export class ChatRecordSDK {
 
   async _captureFrame() {
     if (!this.canvas || !this._targetEl) return
+    if (document.visibilityState === 'hidden') return
     let snap
     try {
-      // 临时隐藏不想录进去的元素 (如密码框)
       const hidden = []
       if (this.opts.ignoreSelector) {
         document.querySelectorAll(this.opts.ignoreSelector).forEach(el => {
@@ -329,7 +438,6 @@ export class ChatRecordSDK {
     const ratio = Math.min(dw / sw, dh / sh)
     const w = sw * ratio, h = sh * ratio
     ctx.drawImage(snap, (dw - w) / 2, (dh - h) / 2, w, h)
-    // 水印
     if (this.opts.watermark) this._drawWatermark(ctx)
   }
 
@@ -337,7 +445,6 @@ export class ChatRecordSDK {
     const W = this.canvas.width, H = this.canvas.height
     const padX = 10, padY = 8
     const lineH = 16
-    // 顶部品牌水印 (半透明色条)
     ctx.save()
     ctx.fillStyle = 'rgba(220, 53, 69, 0.85)'
     ctx.fillRect(0, 0, W, 22)
@@ -345,7 +452,6 @@ export class ChatRecordSDK {
     ctx.font = '600 12px sans-serif'
     ctx.textBaseline = 'middle'
     ctx.fillText('⏺ ' + (this.opts.brandText || '会话回溯录制'), padX, 11)
-    // 右下角: 元信息 (时间 / 录像ID / 会话 / 用户)
     const now = new Date()
     const ts = now.toISOString().replace('T', ' ').slice(0, 19)
     const lines = [
@@ -392,29 +498,5 @@ export class ChatRecordSDK {
   _unmountIndicator() {
     if (this._indicator?.parentNode) this._indicator.parentNode.removeChild(this._indicator)
     this._indicator = null
-  }
-
-  _teardown(removeIndicator) {
-    if (this.captureTimer) { clearInterval(this.captureTimer); this.captureTimer = null }
-    if (this.recorder && this.recorder.state !== 'inactive') {
-      try { this.recorder.stop() } catch (e) {}
-    }
-    if (this.stream) {
-      this.stream.getTracks().forEach(t => t.stop())
-      this.stream = null
-    }
-    if (this._unloadHandler) {
-      window.removeEventListener('beforeunload', this._unloadHandler)
-      window.removeEventListener('pagehide', this._unloadHandler)
-      this._unloadHandler = null
-    }
-    if (this._visibilityHandler) {
-      document.removeEventListener('visibilitychange', this._visibilityHandler)
-      this._visibilityHandler = null
-    }
-    if (removeIndicator) this._unmountIndicator()
-    this.canvas = null
-    this.recorder = null
-    this._targetEl = null
   }
 }

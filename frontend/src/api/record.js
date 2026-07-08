@@ -11,8 +11,8 @@ blobHttp.interceptors.request.use((config) => {
 })
 
 export const recordApi = {
-  init: (sessionId, consent) =>
-    http.post('/api/im/record/init', null, { params: { sessionId, consent } }),
+  init: (sessionId, consent, resumeRecordId) =>
+    http.post('/api/im/record/init', null, { params: { sessionId, consent, resumeRecordId } }),
 
   uploadChunk: (recordId, sequenceNo, durationMs, file, onProgress) => {
     const fd = new FormData()

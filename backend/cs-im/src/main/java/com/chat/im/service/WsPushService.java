@@ -59,9 +59,27 @@ public class WsPushService implements MessageListener {
         try {
             String userIdStr = channel.substring(CommonConstants.REDIS_WS_PUSH_CHANNEL.length());
             Long uid = Long.parseLong(userIdStr);
-            messagingTemplate.convertAndSendToUser(String.valueOf(uid), "/queue/messages", parse(body));
+            // 根据 payload 的 type 字段路由到正确的频道:
+            //   - 有 type 字段 (PRESENCE/READ/RECALL/TRANSFERRED/CLOSED) -> /queue/events
+            //   - 无 type 字段 (聊天消息) -> /queue/messages
+            String destination = looksLikeEvent(body) ? "/queue/events" : "/queue/messages";
+            messagingTemplate.convertAndSendToUser(String.valueOf(uid), destination, parse(body));
         } catch (Exception e) {
             log.error("[ws] redis pub/sub parse failed: {}", body, e);
+        }
+    }
+
+    /**
+     * 判断 payload 是否是事件型 (含 type 字段).
+     * 聊天消息是 MessageDTO JSON 序列化, 有 msgType 但没有 type.
+     * 事件型 payload 是 Map<String,Object>, 含 type 字段.
+     */
+    private boolean looksLikeEvent(String json) {
+        try {
+            java.util.Map<?, ?> m = mapper.readValue(json, java.util.Map.class);
+            return m != null && m.containsKey("type") && !m.containsKey("msgType");
+        } catch (Exception e) {
+            return false;
         }
     }
 

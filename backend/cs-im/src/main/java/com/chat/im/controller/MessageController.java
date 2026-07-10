@@ -15,6 +15,18 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.util.List;
 
+/**
+ * MessageController - 消息收发控制器.
+ * ----------------------------------------------------------------------------
+ * 端点:
+ *   - STOMP /send/{sessionId}     发送消息 (WS 入口, 携带 StompPrincipal)
+ *   - GET  /{sessionId}/history   拉历史消息 (分页, 可选 before_ts)
+ *   - GET  /search                关键字搜索 (含时间范围)
+ *   - POST /{messageId}/recall    撤回 (2 分钟窗口)
+ *   - POST /{sessionId}/read      标记会话已读
+ *
+ * STOMP: @MessageMapping 把 /send/{sid} 路由到 send(), Principal 从 StompAuthChannelInterceptor 注入
+ */
 @Tag(name = "消息")
 @RestController
 @RequestMapping("/api/im/session")

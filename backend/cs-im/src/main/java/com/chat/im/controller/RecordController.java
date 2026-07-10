@@ -23,10 +23,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 录像回溯接口.
+ * RecordController - 录像回溯 REST 控制器.
+ * ----------------------------------------------------------------------------
+ * 端点:
+ *   - POST /init                            初始化录像 (consent=true 才接受)
+ *   - POST /{recordId}/chunk                上传分片 (MultipartFile, 幂等 sequenceNo)
+ *   - POST /{recordId}/end                  结束 (endReason: NORMAL/PAGE_CLOSE/ERROR)
+ *   - GET  /session/{sessionId}             按会话查录像列表
+ *   - GET  /{recordId}/chunks               录像分片列表
+ *   - GET  /{recordId}/merged               服务端 ffmpeg 合并下载 (缓存)
  *
- * 流程: SDK 初始化 -> init (consent 必须 true) -> 上传 chunk (n 次) -> end.
- * 客户页面关闭/被杀进程前必须先 end, 否则视为异常结束.
+ * 合规: init 必须 consent=true, 所有操作走 chat_audit_log
  */
 @Tag(name = "录像回溯", description = "客户页面视频录制 + 回溯 (合规要求)")
 @RestController

@@ -1,9 +1,26 @@
 <script setup>
 /**
- * 单条消息气泡 (从 Customer/Agent 拆出, 共享).
- *  - msgType: TEXT / IMAGE / VOICE / FILE / SYSTEM / RECALL
- *  - senderRole: CUSTOMER / AGENT / BOT / SYSTEM
- *  - 通过 props 接收 readMap / recalledMap / userStore.id 判断是否是自己发的
+ * MessageBubble.vue - 单条消息气泡渲染 (Customer/Agent 共享).
+ * ----------------------------------------------------------------------------
+ * 职责:
+ *   - 根据 msgType 渲染不同的消息内容
+ *   - 根据 senderRole 决定左/右对齐 + 颜色
+ *   - 支持已读状态 (readMap) / 撤回状态 (recalledMap)
+ *   - VOICE 消息使用 useVoiceMessage 解析
+ *
+ * Props:
+ *   - message: ChatMessage             单条消息 (含 id/senderId/senderRole/msgType/content/...)
+ *   - readMap: Record<id, boolean>     已读映射 (渲染 ✓✓)
+ *   - recalledMap: Record<id, boolean> 撤回映射
+ *   - userId: number                   当前用户 ID (判断是否自己发的)
+ *
+ * msgType 路由:
+ *   - TEXT:   文本气泡
+ *   - IMAGE:  el-image 预览
+ *   - VOICE:  HTML5 audio + 波形/时长
+ *   - FILE:   下载链接 (图标 + 文件名)
+ *   - SYSTEM: 系统提示 (居中灰色)
+ *   - RECALL: "你撤回了一条消息" (居中)
  */
 import { computed } from 'vue'
 import { parseVoiceUrl, parseVoiceSeconds } from '@/composables/useVoiceMessage'

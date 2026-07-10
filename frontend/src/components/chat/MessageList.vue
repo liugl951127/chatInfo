@@ -1,10 +1,22 @@
 <script setup>
 /**
- * 虚拟滚动消息列表 (从 Customer/Agent 拆出, 共享).
- *  - DynamicScroller + DynamicScrollerItem (vue-virtual-scroller)
- *  - :key="sessionId" 让 session 切换时强制重新挂载, 避免内部状态交叉
- *  - 通过 slot #bubble 暴露每条消息给调用方渲染 (避免 prop drilling)
- *  - 支持 typing indicator (peerTyping prop)
+ * MessageList.vue - 虚拟滚动消息列表 (Customer/Agent 共享).
+ * ----------------------------------------------------------------------------
+ * 职责:
+ *   - 渲染聊天消息列表 (虚拟滚动, 1000+ 条不偏)
+ *   - 支持 typing indicator (peerTyping 状态)
+ *   - 通过 #bubble slot 暴露每条消息给调用方渲染 (避免 prop drilling)
+ *
+ * Props:
+ *   - messages: ChatMessage[]   消息列表
+ *   - sessionId: number|null    当前会话 ID (切换时强制重新挂载)
+ *   - peerTyping: boolean       对端是否正在输入
+ *
+ * 设计要点:
+ *   - DynamicScroller 用 key-field="id", 需保证 id 唯一
+ *   - 消息无 id 字段 (如 SYSTEM 消息) 需在 appendMessage 处 fallback: tmp-{ts}-{rand}
+ *   - :key="sessionId" 让 session 切换时强制重新挂载, 避免内部 vnode 引用悬空
+ *   - DynamicScrollerItem 给虚拟项提供 size/observe
  */
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'

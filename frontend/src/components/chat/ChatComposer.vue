@@ -1,11 +1,26 @@
 <script setup>
 /**
- * 聊天输入框组件 (从 Customer/Agent 拆出, 共享).
- *  - 输入框: v-model draft, Ctrl+Enter 发送, @input 触发 onTyping
- *  - 工具栏: 图片 (accept prop), 录音 (useRecorder), 表情 (useEmojiPicker), 模板 (slot)
- *  - 录音条: 录音中显示 录音 Ns / 60s + 红点闪烁
- *  - 通过 emit 暴露: send, image-pick, upload-voice-blob
- *  - 模板/快捷回复由调用方通过 slot 注入
+ * ChatComposer.vue - 聊天输入框组件 (Customer/Agent 共享).
+ * ----------------------------------------------------------------------------
+ * 职责:
+ *   - 输入文本 + Ctrl+Enter 发送
+ *   - 工具栏: 图片 (accept prop), 录音 (useRecorder), 表情 (useEmojiPicker), 模板 (slot)
+ *   - 录音中: 显示 "录音 Ns / 60s" + 红点闪烁
+ *   - 输入状态: @input 触发 onTyping emit (接 STOMP /topic/typing)
+ *   - 模板/快捷回复由调用方通过 slot 注入 (Agent 可用 canned replies)
+ *
+ * Props:
+ *   - accept: string   图片 accept 属性 (默认 image/*)
+ *
+ * Emits:
+ *   - send(text: string)              发送文本
+ *   - image-pick(file: File)          选择图片
+ *   - upload-voice-blob(blob: Blob)   录音结束
+ *   - typing()                        输入中 (300ms debounce)
+ *
+ * Slots:
+ *   - toolbar-extra                   额外工具按钮 (坐席可加模板按钮)
+ *   - toolbar-bottom                  输入框下方的额外控件
  */
 import { ref } from 'vue'
 import { Picture, Microphone } from '@element-plus/icons-vue'

@@ -1,23 +1,33 @@
 // chat-record-sdk.js
 // 客户聊天页面视频录制 SDK (合规要求: 用于回溯/审计).
+// ----------------------------------------------------------------------------
+// 设计要点 (合规要求):
+//   - consent=true 才初始化 (PIPL / GDPR / CCPA)
+//   - 录像可见指示: 客户页面顶部闪烁红点 + 文案
+//   - 上传分片: 压缩后的 webm 分片以 MultipartFile 形式 POST 到 /api/im/record/{id}/chunk
+//   - 页面卸载不调 /end (避免丢失未上传分片), 仅 flush pending
 //
 // v3 调整 (企业级连续录制):
-//  - existingRecordId 参数: 续录模式, 跳过 init, 复用已有 record
-//  - start() 自动检测 localStorage 中保存的 recordId 并尝试续录
-//  - 切后台 (visibilitychange=hidden): pause (停 MediaRecorder, 不调 /end, 仅 flush)
-//  - 切回前台 (visibilitychange=visible): 自动 resume (新建 MediaRecorder, 复用 recordId)
-//  - 页面卸载 (beforeunload/pagehide): 仅 flush pending chunks, 不调 /end
-//    -> 录像保持 active 状态, 下次进来能继续续
-//  - 仅 SDK.stop(reason) 显式调用时才调 /end (主动退出场景)
-
-import html2canvas from 'html2canvas'
-
+//   - existingRecordId 参数: 续录模式, 跳过 init, 复用已有 record
+//   - start() 自动检测 localStorage 中保存的 recordId 并尝试续录
+//   - 切后台 (visibilitychange=hidden): pause (停 MediaRecorder, 不调 /end, 仅 flush)
+//   - 切回前台 (visibilitychange=visible): 自动 resume (新建 MediaRecorder, 复用 recordId)
+//   - 页面卸载 (beforeunload/pagehide): 仅 flush pending chunks, 不调 /end
+//     -> 录像保持 active 状态, 下次进来能继续续
+//   - 仅 SDK.stop(reason) 显式调用时才调 /end (主动退出场景)
+//
 // v4 高清录制 (2026-07-08): 提高 fps/码率/分辨率上限
 //   - fps: 4 → 25 (流畅人眼阈值)
 //   - bitrate: 500kbps → 2.5Mbps (清晰可辨)
 //   - canvas max: 1280x800 → 1920x1080 (不再缩)
 //   - html2canvas scale: max(2) → max(1) (原始尺寸, 不超采样)
+//   - frame hash 去重: 同一帧跳过 html2canvas (省 CPU, VP9 自动压缩)
+//   - codec 优先级: H.264 > VP9 > VP8 > webm default (硬件编码优先)
 //   - 新增 mode: 'dom' (html2canvas 采集 DOM, 稳定) | 'screen' (getDisplayMedia 桌面流, 质量最高)
+//     - 屏幕流权限拒接自动 fallback 到 dom 模式
+
+import html2canvas from 'html2canvas'
+
 const DEFAULT_FPS = 25
 const DEFAULT_CHUNK_MS = 3000
 const DEFAULT_BITRATE = 2_500_000  // 2.5 Mbps

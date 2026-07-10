@@ -1,15 +1,28 @@
 import { Client } from '@stomp/stompjs'
 
 /**
- * STOMP 客户端封装.
+ * StompClient - STOMP 客户端封装 (@stomp/stompjs v7).
+ * ----------------------------------------------------------------------------
+ * 职责:
+ *   - 连接/重连/重订阅封装
+ *   - subscribe() 幂等, 防双订阅导致消息双发
+ *   - onConnected / onReconnected / onDisconnected 回调
  *
  * 设计要点:
- *  - subscribe() 幂等: 同一 destination+callback 组合只订阅一次, 防双订阅导致消息双发
- *  - onConnected 回调只在首次连接触发一次, 用于 UI 状态更新
- *  - onReconnected 回调在每次重连成功后触发 (手机切网/锁屏回来场景),
- *    用于 UI 拉一次历史/状态补漏
- *  - 重连后自动从 subscribed Set 重新订阅所有跟踪的目的地
- *  - 指数退避重连 (1s → 32s 上限)
+ *   - subscribe() 幂等: 同一 destination+callback 组合只订阅一次
+ *   - onConnected 只在首次连接触发 (UI 状态: 加载会话列表)
+ *   - onReconnected 每次重连成功后触发 (拉历史/补漏状态, 手机切网场景)
+ *   - 重连后自动从 subscribed Set 重新订阅所有目的地
+ *   - 指数退避重连 (1s → 32s 上限)
+ *
+ * API:
+ *   - connect(): 启动 STOMP 客户端
+ *   - disconnect(): 手动断开 (设 _intentionallyClosed 防误重连)
+ *   - subscribe(dest, callback): 幂等订阅
+ *   - unsubscribe(dest, callback): 取消订阅
+ *   - publish(dest, body, headers?): 发送消息
+ *
+ * brokerURL: 默认 ws://host/api/im/ws, 携带 ?token=xxx 用于鉴权
  */
 export class StompClient {
   constructor({ token, onConnected, onReconnected, onDisconnected, onError } = {}) {

@@ -19,13 +19,23 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * 文件上传 (通用, 不限于图片).
+ * FileController - 文件收发 REST 控制器.
+ * ----------------------------------------------------------------------------
+ * 端点:
+ *   - POST /upload?sessionId=X   上传文件 (multipart, 返 fileUrl 给 STOMP send 使用)
+ *   - GET  /raw?path=...         下载文件 (受控访问, 防越权)
+ *
  * 流程:
- *   1. POST /api/im/file/upload?sessionId=&msgType=FILE  (multipart)
- *      -> 返回 {fileUrl, fileName, fileSize, mimeType}
- *   2. 客户端再走 STOMP /app/send/{sessionId} 把 fileUrl 放进 content 字段发出
- *   3. 收件方通过 GET /api/im/file/raw?path=xxx 拉文件
- * 注: 文件存储路径只允许 <storage-path>/chat-files/ 之下, 防越权.
+ *   1. POST /upload?sessionId=&msgType=FILE  (multipart)
+ *      -> 返 {fileUrl, fileName, fileSize, mimeType}
+ *   2. 客户端再走 STOMP /app/send/{sessionId} 把 fileUrl 放进 content 发出
+ *   3. 收件方通过 GET /raw?path=xxx 拉文件
+ *
+ * 安全:
+ *   - 后缀黑名单 (.exe/.bat/.sh/.cmd/.com/.scr/.vbs/.js)
+ *   - 路径限定 <storage-path>/chat-files/ 之下 (防越权)
+ *   - 50MB 硬限 (server.tomcat.max-swallow-size 配合)
+ *   - 权限: 仅会话参与者可访问 (客户/坐席/管理员)
  */
 @Tag(name = "文件")
 @RestController

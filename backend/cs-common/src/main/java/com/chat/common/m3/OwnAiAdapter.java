@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -18,10 +19,11 @@ import java.util.*;
  * 调 own-ai-adapter Python service (FastAPI, 端口 8085).
  * 阶段 1 完全脱离 miniMax3 / 任何外部 LLM API.
  *
- * 与 HttpM3Adapter 同接口, Java 端可一行切换:
+ * @Primary 标记, 业务注入 M3Capability 默认走自研 AI.
  *   @Autowired
- *   @Qualifier("ownAiAdapter")
- *   private M3Capability ai;
+ *   private M3Capability ai;  // 拿到 OwnAiAdapter
+ *
+ * 如需回退 miniMax3: 删 @Primary 或在业务类用 @Qualifier(\"httpM3Adapter\").
  *
  * 自研 AI 特性:
  *   - 零外部依赖 (纯本地 Python)
@@ -30,6 +32,7 @@ import java.util.*;
  *   - 离线可用
  */
 @Slf4j
+@Primary                                                                // 优先于 HttpM3Adapter
 @Component("ownAiAdapter")
 @RequiredArgsConstructor
 public class OwnAiAdapter implements M3Capability {

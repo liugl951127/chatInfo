@@ -33,6 +33,8 @@ import { ElMessage, ElMessageBox, ElImageViewer } from 'element-plus'
 import { Menu } from '@element-plus/icons-vue'
 import { imApi } from '@/api/im'
 import { recordApi } from '@/api/record'
+import { cdpApi } from '@/api/cdp'
+import { predictionApi } from '@/api/prediction'
 import { useUserStore } from '@/stores/user'
 import { StompClient } from '@/utils/ws-client'
 import { ChatRecordSDK } from '@/utils/record-sdk'
@@ -40,10 +42,101 @@ import MessageList from '@/components/chat/MessageList.vue'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
 import { useResponsive } from '@/composables/useResponsive'
+import { useProactiveFeed } from '@/composables/useProactiveFeed'
+import FloatingActionButton from '@/components/fab/FloatingActionButton.vue'
+import QuickQuestions from '@/components/quick-actions/QuickQuestions.vue'
+import ProactiveFeed from '@/components/quick-actions/ProactiveFeed.vue'
+import ProfileCenter from '@/components/profile-360/ProfileCenter.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 const { isMobile, drawerVisible, previewImageUrl } = useResponsive()
+
+// ============ V3 数字孪生 + 预见式服务 (阶段 1) ============
+const profile = ref(null)
+const profileLoading = ref(false)
+const showProfile = ref(false)
+const { feed: proactiveFeed, unreadCount: proactiveUnread, push: pushProactive, dismiss: dismissProactive } = useProactiveFeed()
+
+async function loadProfile() {
+  profileLoading.value = true
+  try {
+    const r = await cdpApi.getMyProfile()
+    if (r.code === 200) profile.value = r.data
+  } catch (e) { /* 静默 */ }
+  finally { profileLoading.value = false }
+}
+
+async function heartbeat() {
+  try { await cdpApi.heartbeat() } catch (e) {}
+}
+
+// 拉取初始画像 + 心跳
+onMounted(() => {
+  loadProfile()
+  // 每 60s 一次心跳 (保持 last_active_at 准, 避免被标为 silent)
+  setInterval(heartbeat, 60_000)
+})
+
+// ============ V3: FAB / 快捷问题 / 主动推送 处理器 ============
+function onFabAction(name) {
+  switch (name) {
+    case 'chat':
+      if (!session.value) showSkillPicker.value = true
+      break
+    case 'transfer-human':
+      if (session.value) {
+        if (session.value.isBot === 1) botTransferToHuman()
+        else if (session.value.agentId) requestTransfer()
+      }
+      break
+    case 'profile':
+      showProfile.value = true
+      loadProfile()
+      break
+    case 'orders':
+      ElMessage.info('订单查询功能开发中 (阶段 2)')
+      cdpApi.recordEvent('fab_click_orders', {}).catch(() => {})
+      break
+    case 'scan':
+      ElMessage.info('扫一扫功能开发中 (阶段 2)')
+      cdpApi.recordEvent('fab_click_scan', {}).catch(() => {})
+      break
+    case 'community':
+      ElMessage.info('社区功能开发中 (阶段 3)')
+      cdpApi.recordEvent('fab_click_community', {}).catch(() => {})
+      break
+  }
+}
+
+function onQuickQuestion(q) {
+  // 填入输入框, 客户可编辑后发送
+  draft.value = q
+  // 也上报 cdp 事件
+  cdpApi.recordEvent('quick_question_pick', { question: q }, session.value?.id).catch(() => {})
+}
+
+function onProactiveAction(item) {
+  // SESSION_INVITE: 一键发起会话 + 携带上下文
+  if (item.actionType === 'SESSION_INVITE') {
+    if (!session.value) {
+      // 还没会话, 弹出技能选择, 然后自动发文本
+      showSkillPicker.value = true
+      // 预填 (在 skill 选完后 onCreate 后)
+      pendingProactiveText.value = item.text
+    } else {
+      send(item.text)
+    }
+    dismissProactive(item.id)
+    return
+  }
+  // PUSH: 默认只 dismiss
+  dismissProactive(item.id)
+  // 上报点击
+  cdpApi.recordEvent('proactive_click', { ruleCode: item.ruleCode }).catch(() => {})
+}
+
+const pendingProactiveText = ref('')
 
 // ============ 会话 + 消息状态 ============
 const session = ref(null)
@@ -154,6 +247,16 @@ function onStompMessage(payload) {
       ElMessage.info('会话已转接给其他客服')
       drawerVisible.value = false
       refreshSessionFromServer()
+      return
+    }
+    if (payload.type === 'PREDICTION') {
+      // V3 预见式服务主动推送
+      pushProactive(payload)
+      // 同时上报 cdp 事件
+      cdpApi.recordEvent('prediction_received', {
+        ruleCode: payload.ruleCode,
+        actionType: payload.actionType,
+      }).catch(() => {})
       return
     }
   }
@@ -558,10 +661,19 @@ function onRecall(id) { recall(id) }
 
       <!-- 聊天主区 -->
       <section class="chat-area">
+        <!-- V3: 主动推送流 (顶部粘性) -->
+        <ProactiveFeed :feed="proactiveFeed" @dismiss="dismissProactive"
+                       @action="onProactiveAction" />
+
         <div v-if="!session" class="empty">
           <el-empty description="点击右上角开始咨询" />
+          <!-- V3: 快捷问题卡片 (AI 预判) -->
+          <QuickQuestions v-if="profile" :profile="profile" @pick="onQuickQuestion" />
         </div>
         <template v-else>
+          <!-- V3: 快捷问题卡片 (会话中也可选) -->
+          <QuickQuestions v-if="profile && session.status !== 'CLOSED'"
+                          :profile="profile" @pick="onQuickQuestion" />
           <MessageList
             :messages="messages"
             :session-id="session?.id"
@@ -590,6 +702,14 @@ function onRecall(id) { recall(id) }
         </template>
       </section>
     </main>
+
+    <!-- V3: FAB 浮动操作按钮 (始终显示) -->
+    <FloatingActionButton :unread-count="proactiveUnread" @action="onFabAction" />
+
+    <!-- V3: 个人中心 360 抽屉 -->
+    <el-drawer v-model="showProfile" title="个人中心" direction="rtl" size="90%">
+      <ProfileCenter :profile="profile" :loading="profileLoading" @refresh="loadProfile" />
+    </el-drawer>
 
     <!-- 移动端侧栏 -->
     <el-drawer v-if="isMobile" v-model="drawerVisible" title="会话信息" direction="rtl" size="80%">

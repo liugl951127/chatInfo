@@ -1,11 +1,20 @@
 /**
- * 表情快速回复 (从 Customer/Agent 拆出, 两个页面共享).
- *  - 64 个常用 emoji 列表
- *  - insertEmoji(e): 追加到 draft (由调用方传 draft.value)
- *  - emojiOpen 控制 popover 显隐
+ * useEmojiPicker.js - 表情快速回复 composable.
+ * ----------------------------------------------------------------------------
+ * 用途: Customer/Agent 共享的表情选择器 (64 个常用 emoji).
+ *
+ * Returns:
+ *   - emojiOpen: Ref<boolean>      popover 显隐
+ *   - insertEmoji: (e, draftRef)   追加 emoji 到 draft (支持 string / ref / 函数)
+ *   - EMOJI_LIST: 64 个常用 emoji  (常量, 可被 ChatComposer 用 v-for 渲染)
+ *
+ * 使用:
+ *   const { emojiOpen, insertEmoji, EMOJI_LIST } = useEmojiPicker()
+ *   insertEmoji('😀', draft)   // draft 是 ref 或 function
  */
 import { ref } from 'vue'
 
+/** 64 个常用 emoji (拆分后直接用于 v-for 渲染) */
 export const EMOJI_LIST = (
   '😀😁😂🤣😃😄😅😆😉😊😋😎😍😘🥰😗😙😚🙂🤗🤩🤔🤨😐😑😶🙄😏😣😥😮🤐😯😪😫😴😌😛😜😝🤤😒😓😔😕🙃🤑😲☹️🙁😖😞😟😤😢😭😦😧😨😩🤯😬😰😱🥵🥶😳🤪😵😡😠🤬😷🤒🤕🤢🤮🤧🥳🥺🤠🤡🤥🤫🤭🧐🤓👻💀☠️👽👾🤖💩❤️🧡💛💚💙💜🖤🤍🤎💔❣️💕💞💓💗💖💘💝👍👎👌✌️🤞🤟🤘🤙👈👉👆👇✋🤚🖐️🖖👋🤝🙏💪🦾'
 ).split('')

@@ -1,46 +1,80 @@
 package com.chat.im.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.chat.common.api.ApiResponse;
-import com.chat.common.constant.CommonConstants;
-import com.chat.common.security.UserContext;
-import com.chat.im.event.TransferToHumanEvent;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
-import com.chat.im.entity.Agent;
-import com.chat.im.entity.ChatSession;
-import com.chat.im.mapper.ChatSessionMapper;
-import com.chat.im.mapper.UserMapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;       // MP Lambda 构造器
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;              // MP 普通构造器
+import com.chat.common.api.ApiResponse;                                        // 统一响应包装
+import com.chat.common.constant.CommonConstants;                               // 公共常量
+import com.chat.common.security.UserContext;                                   // 当前用户 ThreadLocal
+import com.chat.im.event.TransferToHumanEvent;                                  // 转人工事件
+import org.springframework.context.event.EventListener;                        // @EventListener
+import org.springframework.scheduling.annotation.Async;                         // @Async 异步
+import com.chat.im.entity.Agent;                                                // Agent 实体
+import com.chat.im.entity.ChatSession;                                          // chat_session 实体
+import com.chat.im.mapper.ChatSessionMapper;                                     // DAO
+import com.chat.im.mapper.UserMapper;                                           // user DAO
+import lombok.RequiredArgsConstructor;                                          // final 注入
+import lombok.extern.slf4j.Slf4j;                                                // 日志
+import org.springframework.data.redis.core.StringRedisTemplate;                  // Redis 操作
+import org.springframework.stereotype.Service;                                   // Spring Bean
+import org.springframework.transaction.annotation.Transactional;                  // 事务
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.Optional;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.time.LocalDate;                                                      // 日期 (生成 session_no)
+import java.time.LocalDateTime;                                                  // 时间戳
+import java.time.format.DateTimeFormatter;                                       // 日期格式化
+import java.util.Optional;                                                        // Optional 包装
+import java.util.Arrays;                                                          // 数组工具
+import java.util.HashSet;                                                         // Set
+import java.util.List;                                                            // List
+import java.util.Set;                                                             // Set
 
-@Slf4j
-@Service
-@RequiredArgsConstructor
+/**
+ * SessionService - 会话核心业务服务.
+ * ----------------------------------------------------------------------------
+ * 职责:
+ *   - 创建会话 (客户发起, 支持人/机器人两种模式)
+ *   - 抢单 (坐席手动接单, 防串线 CAS)
+ *   - 转接 (坐席 A -> 坐席 B)
+ *   - 关闭 (客户/坐席主动关闭, 触发 CSAT 评分)
+ *   - 评分 (CSAT 1-5 星)
+ *   - 转人工 (机器人会话 -> 新人工会话, 通过 ApplicationEvent 异步处理)
+ *   - 我的会话 / 等待队列 (查询)
+ *
+ * 依赖:
+ *   - SessionMapper / UserMapper: 持久化
+ *   - StringRedisTemplate: 会话队列 (Redis List) + 坐席-会话映射
+ *   - PresenceService / AgentStatusService: 在线状态 + 坐席状态
+ *   - WsPushService: STOMP 推送 (TRANSFER / CLOSED 事件)
+ *   - SystemMessageService: 系统消息写入
+ *   - AuditLogService: 操作审计
+ *
+ * 并发安全:
+ *   - claim() 用 MySQL 条件 UPDATE (CAS): 只更新 status=WAITING AND agent_id IS NULL
+ *   - 多坐席同时抢单只有 1 个成功, 其他返 409
+ *   - 补偿机制: 失败的请求清理 Redis 队列残留 sid
+ */
+@Slf4j                                                                          // 自动生成 log 字段
+@Service                                                                       // 注册 Spring Bean
+@RequiredArgsConstructor                                                       // final 字段自动注入
 public class SessionService {
 
+    /** chat_session 表 DAO */
     private final ChatSessionMapper sessionMapper;
+    /** user 表 DAO (查坐席信息) */
     private final UserMapper userMapper;
+    /** Redis 客户端 (会话队列 / 坐席-会话映射) */
     private final StringRedisTemplate redis;
+    /** 用户在线状态服务 */
     private final PresenceService presenceService;
+    /** 坐席状态服务 (ONLINE/AWAY/BUSY/OFFLINE) */
     private final AgentStatusService agentStatusService;
+    /** STOMP 推送服务 */
     private final WsPushService wsPushService;
+    /** 审计日志服务 */
     private final AuditLogService auditLogService;
+    /** 系统消息服务 (独立, 避免循环依赖) */
     private final SystemMessageService systemMessageService;
 
+    /** session_no 格式: S + yyyyMMdd + 序号 (例: S202607081234) */
     private static final DateTimeFormatter NO_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     /**
@@ -153,7 +187,7 @@ public class SessionService {
     }
 
     /**
-     * 坐席抢单 (LPOP 等待队列头).
+     * 坐席抢单 (LPOP 等待队列头) - 便捷重载, 等价于 claim(null).
      */
     @Transactional
     public ApiResponse<ChatSession> claim() {
@@ -162,31 +196,43 @@ public class SessionService {
 
     /**
      * 抢单 (原子: 防串线).
+     * ----------------------------------------------------------------------------
+     * 两种调用:
      *   - 主动接起指定会话 (Long sessionId) — 坐席从 waiting list 选单
-     *   - sessionId=null — 从 Redis 队列自动取下一个 WAITING
-     *   - 使用 MySQL 条件 UPDATE (CAS): 只更新 status=WAITING 且 agent_id IS NULL 的行
-     *   - 返回影响行数=0 → 被别人抢了, 报 409
+     *   - sessionId=null — 从 Redis 队列自动取下一个 WAITING (抢单按钮)
+     *
+     * 并发安全:
+     *   - MySQL 条件 UPDATE (CAS): 只更新 status=WAITING AND agent_id IS NULL 的行
+     *   - 多个坐席同时抢同一会话, MySQL 行锁串行化, 只有 1 个 affected=1
+     *   - 其他人 affected=0 → 查最新 agentId 报 409 "会话已被 #X 接起"
+     *
+     * Redis 补偿:
+     *   - CAS 失败后从队列移除 sid (避免其他坐席重复拿到)
+     *   - 成功后从队列移除 sid (防 Redis 残留导致下次重复推)
      */
     @Transactional
     public ApiResponse<ChatSession> claim(Long sessionId) {
+        // 从 ThreadLocal 取当前坐席 ID (JwtAuthInterceptor 已设置)
         Long agentId = UserContext.userId();
         if (agentId == null) return ApiResponse.fail(401, "未登录");
 
-        // 1) 取要抢的 sid: 指定 or 队列
+        // 1) 取要抢的 sid: 手动指定 OR 从 Redis 队列 LPOP
         if (sessionId == null) {
+            // 原子弹出队头
             String sid = redis.opsForList().leftPop(CommonConstants.REDIS_SESSION_QUEUE);
             if (sid == null) return ApiResponse.fail(404, "暂无等待中的会话");
             sessionId = Long.parseLong(sid);
         }
 
-        // 2) 原子 CAS: 只在 session 还处于 WAITING 且 agent_id 为空时才接起
+        // 2) 前置校验
         ChatSession probe = sessionMapper.selectById(sessionId);
         if (probe == null) return ApiResponse.fail(404, "会话不存在");
         if (!CommonConstants.ROLE_AGENT.equalsIgnoreCase(UserContext.role())) {
             return ApiResponse.fail(403, "仅坐席可接单");
         }
 
-        // 只更新 WAITING + agent_id IS NULL 的行 (MySQL 行锁)
+        // 3) 原子 CAS: 条件 UPDATE (同时检查 status=WAITING 且 agent_id IS NULL)
+        // MySQL 隐式行锁保证原子, affected 行数决定成败
         ChatSession update = new ChatSession();
         update.setAgentId(agentId);
         update.setStatus(CommonConstants.SESSION_ACTIVE);
@@ -197,17 +243,19 @@ public class SessionService {
                 .eq(ChatSession::getStatus, CommonConstants.SESSION_WAITING)
                 .isNull(ChatSession::getAgentId));
         if (affected == 0) {
-            // 被别人抢先了, 补偿: 从 Redis 队列移除该 sid (避免其他坐席重复拿)
+            // CAS 失败: 被别人抢先
+            // 补偿: 从 Redis 队列移除该 sid (避免其他坐席重复拿)
             redis.opsForList().remove(CommonConstants.REDIS_SESSION_QUEUE, 0, String.valueOf(sessionId));
             ChatSession latest = sessionMapper.selectById(sessionId);
             String who = (latest != null && latest.getAgentId() != null) ? "#" + latest.getAgentId() : "其他坐席";
             return ApiResponse.fail(409, "会话已被 " + who + " 接起, 请选择其他会话");
         }
 
-        // 3) 拿最新 session (CAS 后状态已是 ACTIVE)
+        // 4) CAS 成功: 拿最新 session, 写 Redis 映射, 发系统消息
         ChatSession s = sessionMapper.selectById(sessionId);
         assignAgent(sessionId, agentId);
 
+        // 系统消息 "客服 XXX 已为您服务 (擅长: tech)"
         Agent agent = userMapper.selectById(agentId);
         String agentName = agent != null ? agent.getNickname() : "#" + agentId;
         String skillPart = s.getSkillTag() != null && !s.getSkillTag().isEmpty()
@@ -215,19 +263,29 @@ public class SessionService {
         systemMessageService.sendSystemMessage(sessionId,
                 "客服 " + agentName + " 已为您服务" + skillPart);
 
-        // 4) 补偿: 队列里别的相同 sid 一起清理 (防 Redis 残留)
+        // 补偿: 队列里其他重复 sid 一起清理 (防 Redis 残留)
         redis.opsForList().remove(CommonConstants.REDIS_SESSION_QUEUE, 0, String.valueOf(sessionId));
 
+        // 审计日志
         auditLogService.log(agentId, "CLAIM", String.valueOf(sessionId), null);
         return ApiResponse.ok(s);
     }
 
     /**
-     * 会话转接: 坐席 A → 坐席 B
+     * 会话转接: 坐席 A → 坐席 B.
+     * ----------------------------------------------------------------------------
+     * 流程:
+     *   1) 校验: 会话存在 + ACTIVE + 当前坐席是 owner
+     *   2) 校验: 目标坐席存在 + role=AGENT
+     *   3) 更新 session: agent_id=toAgentId, transferred_from_agent_id=fromAgentId
+     *   4) 更新 Redis: 清除原坐席映射, 写入新坐席映射
+     *   5) 系统消息: "会话已转接给客服 XXX, 原因: ..."
+     *   6) STOMP 推送: notifySessionTransferred (前端 TRANSFERRED 事件)
+     *   7) 审计日志
      */
     @Transactional
     public ApiResponse<ChatSession> transfer(Long sessionId, Long toAgentId, String reason) {
-        Long fromAgentId = UserContext.userId();
+        Long fromAgentId = UserContext.userId();                            // 当前坐席 (转出方)
         ChatSession s = sessionMapper.selectById(sessionId);
         if (s == null) return ApiResponse.fail(404, "会话不存在");
         if (!CommonConstants.SESSION_ACTIVE.equals(s.getStatus())) {
@@ -365,14 +423,18 @@ public class SessionService {
     }
 
     /**
-     * 客户主动转人工 (从机器人会话退出, 重新进队列).
-     * 状态: CLOSED 原机器人会话 + 新建一个 ACTIVE 等待分配的人工会话.
-     * 客户前端应刷新 /api/im/session/mine 看到新会话.
-     */
-    @Transactional
-    /**
      * 异步处理客户转人工事件 (由 MessageService 发布).
-     * 不走 UserContext, 事件本身携带 customerId + sessionId + skill.
+     * ----------------------------------------------------------------------------
+     * 不走 UserContext (因为 @Async 异步, 原 ThreadLocal 可能已失效),
+     * 事件本身携带 customerId + sessionId + skill.
+     *
+     * 幂等性: 如果 bot 会话已经被关闭或 customer 不匹配, 直接 return.
+     *
+     * 流程:
+     *   1) 关闭 bot 会话 (status=CLOSED, lastMessage="客户申请转人工")
+     *   2) 重新进人工队列 (调 create(skill, false))
+     *   3) 推 BOT_TRANSFER 事件给客户前端 (跳转新人工会话)
+     *   4) 审计日志
      */
     @EventListener
     @Async
@@ -382,29 +444,36 @@ public class SessionService {
         String skillTag = event.getSkillTag();
         log.info("[event] TransferToHuman: customer={} session={} skill={}", customerId, oldSessionId, skillTag);
 
+        // 幂等检查: 会话不存在/已关闭/customer 不匹配 直接返
         ChatSession old = sessionMapper.selectById(oldSessionId);
         if (old == null || CommonConstants.SESSION_CLOSED.equals(old.getStatus())) return;
         if (!customerId.equals(old.getCustomerId())) return;
 
-        // 关闭 bot 会话
+        // 1) 关闭 bot 会话
         old.setStatus(CommonConstants.SESSION_CLOSED);
         old.setClosedAt(LocalDateTime.now());
         old.setLastMessage("客户申请转人工");
         sessionMapper.updateById(old);
+        // 清 Redis 客户-会话映射
         redis.delete(CommonConstants.REDIS_CUSTOMER_SESSION + customerId);
 
-        // 重新进人工队列 — 直接调内部 create 逻辑
+        // 2) 重新进人工队列 — 直接调内部 create 逻辑 (isBot=false)
         ApiResponse<ChatSession> fresh = create(skillTag != null ? skillTag : old.getSkillTag(), false);
         Long newId = fresh.getData() != null ? fresh.getData().getId() : null;
         auditLogService.log(customerId, "TRANSFER_BOT_TO_HUMAN", String.valueOf(oldSessionId),
                 "newSession=" + newId);
 
-        // 推事件给客户前端: 跳转到新会话
+        // 3) 推事件给客户前端: 跳转到新会话
         if (newId != null) {
             wsPushService.pushBotTransferEvent(customerId, oldSessionId, newId);
         }
     }
 
+    /**
+     * 客户主动转人工 (REST 版本, 兼容直接调用).
+     * 与 onTransferToHumanEvent 区别: 这个走 UserContext 同步调用, 给客户前端按钮触发.
+     */
+    @Transactional
     public ApiResponse<ChatSession> transferToHuman(Long sessionId, String skillTag) {
         Long uid = UserContext.userId();
         if (!CommonConstants.ROLE_CUSTOMER.equalsIgnoreCase(UserContext.role())) {

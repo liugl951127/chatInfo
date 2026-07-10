@@ -15,6 +15,21 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * AuthController - 鉴权 REST 控制器.
+ * ----------------------------------------------------------------------------
+ * 端点:
+ *   - POST /login                登录 (返 JWT token + userId/role/skills)
+ *   - POST /register             注册 (返 LoginVO 同登录)
+ *   - GET  /me                   当前用户信息 (从 JWT 读 uid)
+ *   - GET  /skills               坐席可服务技能列表 (仅客服可见)
+ *   - GET  /users?role=...       用户列表 (按角色, 走 JWT)
+ *
+ * JWT:
+ *   - HS256 + 共用 secret (cs-auth / cs-im / cs-gateway 三个服务 secret 必须一致)
+ *   - 默认 8h 过期
+ *   - JwtAuthInterceptor 解析后存 UserContext (ThreadLocal)
+ */
 @Tag(name = "鉴权")
 @RestController
 @RequestMapping("/auth")

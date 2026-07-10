@@ -6,6 +6,7 @@ const routes = [
   { path: '/login', component: () => import('@/views/Login.vue'), meta: { guest: true } },
   { path: '/customer', component: () => import('@/views/Customer.vue'), meta: { auth: true, role: 'CUSTOMER' } },
   { path: '/agent', component: () => import('@/views/Agent.vue'), meta: { auth: true, role: 'AGENT' } },
+  { path: '/community', component: () => import('@/views/Community.vue'), meta: { auth: true } },
   { path: '/replay/:sessionId', component: () => import('@/views/Replay.vue'), meta: { auth: true } }
 ]
 

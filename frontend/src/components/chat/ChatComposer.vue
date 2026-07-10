@@ -25,6 +25,7 @@
 import { ref } from 'vue'
 import { Picture, Microphone } from '@element-plus/icons-vue'
 import { useEmojiPicker, EMOJI_LIST } from '@/composables/useEmojiPicker'
+import SentimentIndicator from '@/components/chat/SentimentIndicator.vue'
 import { useRecorder } from '@/composables/useRecorder'
 
 const props = defineProps({
@@ -95,15 +96,18 @@ function pickImage() {
       </div>
     </el-popover>
 
-    <el-input
-      :model-value="modelValue"
-      type="textarea"
-      :rows="2"
-      :autosize="{ minRows: 1, maxRows: 4 }"
-      :placeholder="placeholder"
-      :disabled="disabled"
-      @update:model-value="onInput"
-      @keydown="onKeydown" />
+    <div class="composer-input-wrap">
+      <el-input
+        :model-value="modelValue"
+        type="textarea"
+        :rows="2"
+        :autosize="{ minRows: 1, maxRows: 4 }"
+        :placeholder="placeholder"
+        :disabled="disabled"
+        @update:model-value="onInput"
+        @keydown="onKeydown" />
+      <SentimentIndicator :text="modelValue" />
+    </div>
 
     <el-button type="primary" size="large" class="send-btn"
                :disabled="disabled || !modelValue.trim()" @click="emit('send')">发送</el-button>

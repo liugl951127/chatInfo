@@ -11,14 +11,11 @@ import java.util.*;
 /**
  * VoiceAiAgent - 智能电话 AI Agent (对话决策).
  * ----------------------------------------------------------------------------
- * 接 m3-adapter 的 chat 能力, 支持 Function Calling:
- *   - checkOrder: 查订单
- *   - createRefund: 发起退款
- *   - transferToHuman: 转人工
- *   - endCall: 结束通话
+ * 注入 M3Capability, 默认走自研 AI (LocalAiService, @Primary).
+ * 零外部依赖, 0-1ms 响应, 完全可解释.
  *
- * 阶段 1: 简化版 (主对话 + 意图判断)
- * 阶段 2: 完整 Function Calling
+ * 阶段 1: 简化版 (关键词意图 + LocalAiService.chat 兑底)
+ * 阶段 2: 完整 Function Calling (依赖 M3 tool use)
  */
 @Slf4j
 @Service

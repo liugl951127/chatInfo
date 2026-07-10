@@ -41,6 +41,7 @@ import { StompClient } from '@/utils/ws-client'
 import MessageList from '@/components/chat/MessageList.vue'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
+import SmartReplySuggestions from '@/components/chat/SmartReplySuggestions.vue'
 import { useResponsive } from '@/composables/useResponsive'
 import { useNotification } from '@/composables/useNotification'
 
@@ -55,6 +56,22 @@ const sessions = ref([])
 const current = ref(null)
 const messages = ref([])
 const draft = ref('')
+
+/** 最后一条客户消息 (供 SmartReplySuggestions 使用) */
+const lastCustomerText = computed(() => {
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const m = messages.value[i]
+    if (m.senderRole === 'CUSTOMER' && m.msgType === 'TEXT' && !m.recalled) {
+      return m.content || ''
+    }
+  }
+  return ''
+})
+
+/** 点选智能推荐 -> 一键填入输入框 */
+function onSmartPick(text) {
+  draft.value = text
+}
 const connected = ref(false)
 const reconnecting = ref(false)
 const waitingCount = ref(0)
@@ -537,6 +554,9 @@ onBeforeUnmount(() => {
               <el-button v-else size="small" type="danger" plain @click="closeSession">×</el-button>
             </div>
           </div>
+
+          <!-- 智能回复推荐 -->
+          <SmartReplySuggestions :last-user-text="lastCustomerText" @pick="onSmartPick" />
 
           <!-- 消息列表 + 输入框 -->
           <MessageList :messages="messages" :session-id="current?.id" :peer-typing="peerTyping">

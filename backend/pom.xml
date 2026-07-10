@@ -23,6 +23,12 @@
         <module>cs-gateway</module>
         <module>cs-auth</module>
         <module>cs-im</module>
+        <module>cs-prediction</module>
+        <module>cs-cdp</module>
+        <module>cs-customer-success</module>
+        <module>cs-community</module>
+        <module>cs-video</module>
+        <module>cs-voice</module>
     </modules>
 
     <properties>

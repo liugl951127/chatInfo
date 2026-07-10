@@ -1,0 +1,38 @@
+server:
+  port: 9005
+
+spring:
+  application:
+    name: cs-prediction
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/online_chat?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: root
+    password: 951127
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      timeout: 3000
+  jackson:
+    time-zone: Asia/Shanghai
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+
+chat:
+  jwt:
+    secret: 5vQeSUDLFEt81MPAmQetxV7i8fBJLTSjPCf15seKgOI7PTXou5vgcc4M01aoseUJ
+    ttl-ms: 86400000
+  m3:
+    adapter-url: http://localhost:8084
+    default-model: minimax3
+
+logging:
+  level:
+    com.chat: DEBUG

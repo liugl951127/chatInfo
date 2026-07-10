@@ -23,6 +23,7 @@
  *   - RECALL: "你撤回了一条消息" (居中)
  */
 import { computed } from 'vue'
+import { Document } from '@element-plus/icons-vue'
 import { parseVoiceUrl, parseVoiceSeconds } from '@/composables/useVoiceMessage'
 
 const props = defineProps({

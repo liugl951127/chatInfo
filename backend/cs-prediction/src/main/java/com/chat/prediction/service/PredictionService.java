@@ -1,6 +1,7 @@
 package com.chat.prediction.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.chat.common.constant.CommonConstants;
 import com.chat.prediction.entity.PredictionEvent;
 import com.chat.prediction.entity.PredictionRule;
 import com.chat.prediction.mapper.PredictionEventMapper;
@@ -9,7 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,7 +38,7 @@ public class PredictionService {
     private final PredictionRuleMapper ruleMapper;
     private final PredictionEventMapper eventMapper;
     private final RuleEngine ruleEngine;
-    private final SimpMessagingTemplate messagingTemplate;
+    // SimpMessagingTemplate 弃用: 改用 Redis pub/sub 让 cs-im 转发
     private final StringRedisTemplate redis;
     private final ObjectMapper mapper;
 
@@ -99,14 +99,16 @@ public class PredictionService {
                 eventMapper.insert(ev);
                 triggered.add(ev);
 
-                // 6) 推送到用户 STOMP 队列
+                // 6) 通过 Redis pub/sub 推送 (cs-im 收到后用 SimpMessagingTemplate 推 STOMP)
+                //    跨实例 + 避免 STOMP 'No handlers' 错误 (cs-prediction 没有 @MessageMapping handler)
                 try {
-                    messagingTemplate.convertAndSendToUser(
-                            String.valueOf(userId), "/queue/events", payload);
+                    String channel = CommonConstants.REDIS_WS_PUSH_CHANNEL + userId;
+                    String json = mapper.writeValueAsString(payload);
+                    redis.convertAndSend(channel, json);
                     log.info("[prediction] fired: user={} rule={} text={}",
                             userId, rule.getRuleCode(), text);
                 } catch (Exception e) {
-                    log.error("[prediction] STOMP push failed: user={} rule={}",
+                    log.error("[prediction] redis push failed: user={} rule={}",
                             userId, rule.getRuleCode(), e);
                 }
             } catch (Exception e) {

@@ -30,7 +30,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElImageViewer } from 'element-plus'
-import { Menu } from '@element-plus/icons-vue'
+import { Menu, Promotion, User } from '@element-plus/icons-vue'
 import { imApi } from '@/api/im'
 import { recordApi } from '@/api/record'
 import { cdpApi } from '@/api/cdp'
@@ -635,13 +635,17 @@ function onRecall(id) { recall(id) }
       <el-button v-if="isMobile" link class="menu-btn" @click="drawerVisible = true">
         <el-icon><Menu /></el-icon>
       </el-button>
-      <span class="title">在线客服</span>
+      <span class="title">
+        <span class="title-icon">💬</span> 在线客服
+        <el-tag v-if="profile && profile.vipLevel > 0" type="warning" size="small" class="title-vip">{{ profile.vipLabel }}</el-tag>
+      </span>
       <span class="status" :class="{ ok: connected, warn: !connected && !reconnecting, bad: reconnecting }">
+        <span class="status-dot"></span>
         {{ connected ? '已连接' : (reconnecting ? '重连中…' : '未连接') }}
       </span>
       <div class="spacer" />
-      <el-button v-if="!session" type="primary" class="side-btn" @click="showSkillPicker = true">
-        开始咨询
+      <el-button v-if="!session" type="primary" class="side-btn" round @click="showSkillPicker = true">
+        <el-icon><Promotion /></el-icon>&nbsp;开始咨询
       </el-button>
       <el-button v-else link @click="logout">退出</el-button>
     </header>
@@ -686,10 +690,44 @@ function onRecall(id) { recall(id) }
         <ProactiveFeed :feed="proactiveFeed" @dismiss="dismissProactive"
                        @action="onProactiveAction" />
 
-        <div v-if="!session" class="empty">
-          <el-empty description="点击右上角开始咨询" />
+        <div v-if="!session" class="welcome">
+          <div class="welcome-bg">
+            <div class="welcome-blob welcome-blob-1"></div>
+            <div class="welcome-blob welcome-blob-2"></div>
+          </div>
+          <div class="welcome-card">
+            <div class="welcome-emoji">👋</div>
+            <h2 class="welcome-title">你好, {{ userStore.nickname || '朋友' }}!</h2>
+            <p class="welcome-subtitle">我是你的 AI 客服助手, 7×24h 在线为你服务</p>
+            <div class="welcome-actions">
+              <el-button type="primary" size="large" round @click="showSkillPicker = true">
+                <el-icon><Promotion /></el-icon>&nbsp;开始对话
+              </el-button>
+              <el-button size="large" round @click="onFabAction('profile')">
+                <el-icon><User /></el-icon>&nbsp;个人中心
+              </el-button>
+            </div>
+            <div class="welcome-stats" v-if="profile">
+              <div class="stat-item">
+                <div class="stat-value">{{ profile.totalSessions || 0 }}</div>
+                <div class="stat-label">咨询次数</div>
+              </div>
+              <div class="stat-divider"></div>
+              <div class="stat-item">
+                <div class="stat-value">{{ profile.avgCsat || '-' }}</div>
+                <div class="stat-label">平均满意度</div>
+              </div>
+              <div class="stat-divider"></div>
+              <div class="stat-item">
+                <div class="stat-value">{{ profile.healthScore || 100 }}</div>
+                <div class="stat-label">健康分</div>
+              </div>
+            </div>
+          </div>
           <!-- V3: 快捷问题卡片 (AI 预判) -->
-          <QuickQuestions v-if="profile" :profile="profile" @pick="onQuickQuestion" />
+          <div class="welcome-questions" v-if="profile">
+            <QuickQuestions :profile="profile" @pick="onQuickQuestion" />
+          </div>
         </div>
         <template v-else>
           <!-- V3: 快捷问题卡片 (会话中也可选) -->
@@ -821,6 +859,152 @@ main { flex: 1; display: flex; min-height: 0; }
 .side-btn { width: 100%; margin-top: 8px; }
 .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff; }
 .empty { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+/* ===== V3 欢迎页 ===== */
+.welcome {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow: hidden;
+}
+.welcome-bg {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.welcome-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.4;
+  animation: blob-float 12s ease-in-out infinite;
+}
+.welcome-blob-1 {
+  width: 300px; height: 300px;
+  background: linear-gradient(135deg, #409EFF, #67C23A);
+  top: -100px; left: -100px;
+}
+.welcome-blob-2 {
+  width: 250px; height: 250px;
+  background: linear-gradient(135deg, #E6A23C, #F56C6C);
+  bottom: -80px; right: -80px;
+  animation-delay: -6s;
+}
+@keyframes blob-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, -20px) scale(1.1); }
+}
+.welcome-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+  text-align: center;
+  max-width: 480px;
+  width: 100%;
+  animation: welcome-in 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes welcome-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.welcome-emoji {
+  font-size: 56px;
+  margin-bottom: 12px;
+  animation: emoji-wave 2s ease-in-out infinite;
+  display: inline-block;
+}
+@keyframes emoji-wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-15deg); }
+  75% { transform: rotate(15deg); }
+}
+.welcome-title {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #303133, #409EFF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.welcome-subtitle {
+  margin: 0 0 24px;
+  color: #909399;
+  font-size: 14px;
+}
+.welcome-actions {
+  display: flex; gap: 12px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+.welcome-stats {
+  display: flex; align-items: center;
+  justify-content: space-around;
+  padding: 16px 0 0;
+  border-top: 1px solid #ebeef5;
+}
+.stat-item {
+  flex: 1;
+  text-align: center;
+}
+.stat-value {
+  font-size: 22px; font-weight: 600;
+  color: #303133;
+  line-height: 1.2;
+}
+.stat-label {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 2px;
+}
+.stat-divider {
+  width: 1px; height: 32px;
+  background: #ebeef5;
+}
+.welcome-questions {
+  position: relative;
+  margin-top: 24px;
+  width: 100%;
+  max-width: 480px;
+}
+
+/* ===== 头部样式增强 ===== */
+.title-icon {
+  margin-right: 4px;
+  filter: drop-shadow(0 2px 4px rgba(64, 158, 255, 0.3));
+}
+.title-vip {
+  margin-left: 8px;
+  font-weight: bold;
+}
+.status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+  animation: status-pulse 2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+.side-btn {
+  background: linear-gradient(135deg, #409EFF, #67C23A);
+  border: none;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+  transition: transform 0.2s;
+}
+.side-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.4);
+}
 .skill-group { display: flex; flex-wrap: wrap; }
 .drawer-content p { margin: 8px 0; font-size: 14px; color: #606266; }
 </style>

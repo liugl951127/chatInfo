@@ -18,6 +18,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * SessionController - 会话管理 REST 控制器.
+ * ----------------------------------------------------------------------------
+ * 端点:
+ *   - POST /create              客户创建会话 (mode=bot 走智能客服)
+ *   - POST /claim?sessionId=X   坐席接单 (CAS 防串线, 指定 session 优先)
+ *   - GET  /mine                当前用户的会话列表 (客户 mine / 坐席 active+waiting)
+ *   - GET  /queue/waiting       坐席视角的等待队列 (含技能筛选)
+ *   - POST /close               关闭会话 (客户/坐席主动)
+ *   - POST /transfer            转接会话
+ *   - POST /rate                客户 CSAT 评分
+ *   - GET  /messages/unread     未读消息数 (拉离线)
+ *
+ * 鉴权: 所有端点需 JWT, UserContext 提取 uid+role
+ */
 @Tag(name = "会话")
 @RestController
 @RequestMapping("/api/im/session")
@@ -38,10 +53,15 @@ public class SessionController {
         return sessionService.create(skill, isBot);
     }
 
+    /**
+     * 坐席抢单 (核心端点).
+     * - 不传 sessionId: 从 Redis 队列自动取下一个
+     * - 传 sessionId: 手动接起指定会话 (v2.5.0, Agent.vue 接起按钮)
+     * - CAS: MySQL 行锁防串线, 多坐席同时抢 -> 1 成功 / 其他 409
+     */
     @Operation(summary = "坐席抢单")
     @PostMapping("/claim")
     public ApiResponse<ChatSession> claim(@RequestParam(required = false) Long sessionId) {
-        // 不传 sessionId → 从 Redis 队列自动取下一个; 传了 → 手动接起指定会话 (防串线 CAS)
         return sessionService.claim(sessionId);
     }
 

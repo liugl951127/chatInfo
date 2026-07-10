@@ -1,56 +1,104 @@
 package com.chat.im.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.chat.common.api.ApiResponse;
-import com.chat.common.constant.CommonConstants;
-import com.chat.common.dto.MessageDTO;
-import com.chat.common.security.UserContext;
-import com.chat.im.entity.ChatMessage;
-import com.chat.im.entity.ChatSession;
-import com.chat.im.entity.MessageReceipt;
-import com.chat.im.mapper.ChatMessageMapper;
-import com.chat.im.mapper.ChatSessionMapper;
-import com.chat.im.mapper.MessageReceiptMapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;       // MP Lambda 构造器
+import com.chat.common.api.ApiResponse;                                        // 统一响应
+import com.chat.common.constant.CommonConstants;                               // 公共常量
+import com.chat.common.dto.MessageDTO;                                         // 消息 DTO
+import com.chat.common.security.UserContext;                                   // ThreadLocal
+import com.chat.im.entity.ChatMessage;                                          // chat_message 实体
+import com.chat.im.entity.ChatSession;                                          // chat_session 实体
+import com.chat.im.entity.MessageReceipt;                                       // 已读回执实体
+import com.chat.im.mapper.ChatMessageMapper;                                     // DAO
+import com.chat.im.mapper.ChatSessionMapper;                                     // DAO
+import com.chat.im.mapper.MessageReceiptMapper;                                  // 已读 DAO
+import lombok.RequiredArgsConstructor;                                          // final 注入
+import lombok.extern.slf4j.Slf4j;                                                // 日志
+import org.springframework.messaging.simp.SimpMessagingTemplate;                  // STOMP 推送
+import org.springframework.stereotype.Service;                                   // Spring Bean
+import org.springframework.transaction.annotation.Transactional;                  // 事务
 
-import java.time.LocalDateTime;
-import java.util.List;
+import java.time.LocalDateTime;                                                  // 时间戳
+import java.util.List;                                                            // List
 
-@Slf4j
-@Service
-@RequiredArgsConstructor
+/**
+ * MessageService - 消息核心业务服务.
+ * ----------------------------------------------------------------------------
+ * 职责:
+ *   - handleIncoming: STOMP/REST 收消息 -> 持久化 + 推送 + 未读 +1
+ *   - 机器人会话: 客户发文本时自动调用 BotService.reply() + sendBotReply()
+ *   - 客户发 "人工"/"真人" 等关键词: 发布 TransferToHumanEvent (SessionService 异步消费)
+ *   - history: 拉历史消息 (权限检查: 客户/坐席/管理员)
+ *   - search: 关键字搜索 + 时间范围
+ *   - recall: 2 分钟内撤回自己的消息
+ *   - read 标记: 消息已读 + 会话已读
+ *   - typing: 打字事件处理
+ *
+ * 依赖:
+ *   - BotService (静态调用) - 机器人回复生成
+ *   - SystemMessageService - 系统消息
+ *   - ApplicationEventPublisher - 发布转人工事件 (解耦 SessionService)
+ *   - WsPushService / messagingTemplate - STOMP 推送
+ *   - PresenceService / OfflineMessageStore / UnreadCounterService
+ *
+ * 设计:
+ *   - 撤回窗口 2 分钟 (RECALL_WINDOW_MS), 超时返 409
+ *   - 推送双发: sender 收到自己的消息 (用于多端同步), peer 收到对方消息
+ *   - 未读递增只在 peer 在线时 +1, 离线存 OfflineMessageStore
+ */
+@Slf4j                                                                          // 自动生成 log
+@Service                                                                       // Spring Bean
+@RequiredArgsConstructor                                                       // final 字段注入
 public class MessageService {
 
+    /** chat_message 表 DAO */
     private final ChatMessageMapper messageMapper;
+    /** chat_session 表 DAO */
     private final ChatSessionMapper sessionMapper;
+    /** message_receipt 表 DAO (已读回执) */
     private final MessageReceiptMapper receiptMapper;
+    /** STOMP 推送模板 (向 /user/{uid}/queue/messages 推送) */
     private final SimpMessagingTemplate messagingTemplate;
-    // 不再直接依赖 SessionService, 通过 ApplicationEvent 解耦 (避免循环依赖)
+    /** 不直接依赖 SessionService, 通过 ApplicationEvent 解耦 (避免循环依赖) */
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    /** 系统消息服务 (独立, 避免循环依赖) */
     private final SystemMessageService systemMessageService;
+    /** 用户在线状态服务 */
     private final PresenceService presenceService;
+    /** 离线消息存储 (peer 离线时暂存) */
     private final OfflineMessageStore offlineStore;
+    /** 未读计数服务 (peer 在线 +1) */
     private final UnreadCounterService unreadCounterService;
+    /** STOMP 业务事件推送 (TRANSFERRED / CLOSED / BOT_TRANSFER 等) */
     private final WsPushService wsPushService;
     // BotService 不需要注入, 静态方法调用 (避免循环依赖)
 
-    /** 撤回窗口 (2 分钟) */
+    /** 撤回窗口 (2 分钟, 超时不允许撤回) */
     private static final long RECALL_WINDOW_MS = 2 * 60 * 1000L;
 
+    /**
+     * 处理入站消息 (STOMP send 入口).
+     * ----------------------------------------------------------------------------
+     * 流程:
+     *   1) 校验: sender / 角色 / 会话存在 / 会话未关闭
+     *   2) 持久化 chat_message
+     *   3) 更新 chat_session.lastMessage (会话列表预览)
+     *   4) 推送: peer 在线 -> STOMP, 离线 -> OfflineMessageStore
+     *   5) 推送: sender (多端同步, 自己发的也能在另一端看到)
+     *   6) 机器人会话特化: 客户发"人工"等关键词 -> 发布 TransferToHumanEvent
+     *   7) 机器人会话特化: 普通文本 -> BotService.reply() 自动回复
+     */
     @Transactional
     public void handleIncoming(Long sessionId, MessageDTO in, Long senderId, String role) {
         if (senderId == null || role == null) throw new IllegalArgumentException("未登录");
 
+        // 1) 校验会话状态
         ChatSession s = sessionMapper.selectById(sessionId);
         if (s == null) throw new IllegalArgumentException("会话不存在");
         if (CommonConstants.SESSION_CLOSED.equals(s.getStatus())) {
             throw new IllegalStateException("会话已关闭");
         }
 
+        // 2) 持久化消息
         ChatMessage m = new ChatMessage();
         m.setSessionId(sessionId);
         m.setSenderId(senderId);
@@ -61,30 +109,37 @@ public class MessageService {
         m.setCreatedAt(LocalDateTime.now());
         messageMapper.insert(m);
 
+        // 把 DB 生成的 id 和时间回填到 DTO (后续推送用)
         in.setId(m.getId());
         in.setSenderId(senderId);
         in.setSenderRole(role);
         in.setCreatedAt(m.getCreatedAt());
 
+        // 3) 更新会话 lastMessage (用于会话列表预览)
         s.setLastMessage(truncate(in.getContent()));
         s.setUpdatedAt(LocalDateTime.now());
         sessionMapper.updateById(s);
 
+        // 4) + 5) 推送给 peer 和 sender
         Long peerId = isCustomer(senderId, s) ? s.getAgentId() : s.getCustomerId();
         if (peerId != null) {
-            // 未读 +1
+            // 未读 +1 (peer 在线时)
             unreadCounterService.incr(peerId, sessionId);
             if (presenceService.isOnline(peerId)) {
+                // 在线: 直接 STOMP 推送
                 messagingTemplate.convertAndSendToUser(String.valueOf(peerId), "/queue/messages", in);
             } else {
+                // 离线: 暂存, 上线后 drainOffline 取
                 offlineStore.push(peerId, in);
             }
         }
+        // sender 自己的多端同步 (例如客户手机+电脑同时登录)
         messagingTemplate.convertAndSendToUser(String.valueOf(senderId), "/queue/messages", in);
 
         log.debug("[msg] session={} from {} ({}) -> peer={}", sessionId, senderId, role, peerId);
 
-        // 机器人会话: 客户发"人工"或"真人" → 发布事件, SessionService 异步处理转人工
+        // 6) 机器人会话: 客户发"人工"/"真人" 等转人工关键词 -> 发布事件
+        //    SessionService.onTransferToHumanEvent @Async 消费
         if (s.getAgentId() == null && CommonConstants.ROLE_CUSTOMER.equals(role)
                 && s.getIsBot() != null && s.getIsBot() == 1
                 && CommonConstants.MSG_TEXT.equals(m.getMsgType())) {
@@ -98,18 +153,19 @@ public class MessageService {
                 } catch (Exception e) {
                     log.warn("[bot] transfer publish failed", e);
                 }
-                return;  // 不再走 bot reply
+                // 转人工时不再走 bot reply
+                return;
             }
         }
 
-        // 机器人会话: 客户发消息后自动回复 (sender_role=BOT 推到 /queue/messages)
+        // 7) 机器人会话: 普通文本 -> BotService.reply() 自动回复
         if (s.getAgentId() == null && CommonConstants.ROLE_CUSTOMER.equals(role)
                 && s.getIsBot() != null && s.getIsBot() == 1
                 && CommonConstants.MSG_TEXT.equals(m.getMsgType())) {
             try {
                 String reply = BotService.reply(in.getContent());
                 if (reply != null) {
-                    // 模拟思考延迟 (50-200ms, 自然些)
+                    // 模拟思考延迟 (50-200ms, 自然些, 避免秒回显得机器人)
                     long delay = 50L + (long) (Math.random() * 150);
                     Thread.sleep(delay);
                     sendBotReply(sessionId, s.getCustomerId(), reply);
@@ -120,12 +176,17 @@ public class MessageService {
         }
     }
 
-    /** 检测客户是否请求转人工 ("人工" / "真人" / "转接" / "转人工" / "human") */
+    /**
+     * 检测文本是否包含转人工关键词.
+     * 触发后 MessageService 发布 TransferToHumanEvent, SessionService 异步处理.
+     * @param text 用户消息 (已 trim)
+     * @return true = 包含 "人工"/"真人"/"转接"/"human" 等关键词
+     */
     private static final java.util.Set<String> TRANSFER_KW = java.util.Set.of(
         "人工", "真人", "转接", "转人工", "human", "agent", "坐席");
     private static boolean containsTransferKeyword(String text) {
         if (text == null || text.isEmpty()) return false;
-        String lower = text.toLowerCase().trim();
+        String lower = text.toLowerCase().trim();                            // 不区分大小写
         for (String kw : TRANSFER_KW) {
             if (lower.contains(kw.toLowerCase())) return true;
         }

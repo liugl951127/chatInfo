@@ -1,16 +1,31 @@
 <script setup>
 /**
- * Customer.vue (客户聊天主入口) — v5 重构
- *  - 装配 MessageList + MessageBubble + ChatComposer 子组件
- *  - STOMP 连接/订阅 + 业务事件分发
- *  - 会话生命周期 (创建/转人工/退出/评分)
- *  - 合规录制 (ChatRecordSDK)
+ * Customer.vue - 客户聊天主入口 (H5 移动端优先).
+ * ----------------------------------------------------------------------------
+ * 模块职责:
+ *   - 装配 MessageList + MessageBubble + ChatComposer 子组件
+ *   - STOMP 连接/订阅 + 业务事件分发 (新消息/已读/转接/关闭/录存/动态)
+ *   - 会话生命周期 (创建 bot/人工会话 + 转人工 + 退出 + CSAT 评分)
+ *   - 合规录制 (ChatRecordSDK v4 HD 25fps/2.5Mbps/1080p)
+ *   - 移动端响应式 (drawer 侧边栏 + 适配/拨号 + 安全区)
  *
- * 重构要点:
- *  - 录音/表情/响应式 → composables (useRecorder/useEmojiPicker/useResponsive)
- *  - 消息渲染 → components/chat/MessageList + MessageBubble
- *  - 输入框 → components/chat/ChatComposer
- *  - VOICE 解析 → composables/useVoiceMessage
+ * v5 重构: 从 983 行压缩到 659 行 (-33%).
+ *   - 录音/表情/响应式 → composables/ (useRecorder/useEmojiPicker/useResponsive)
+ *   - 消息渲染 → components/chat/MessageList + MessageBubble
+ *   - 输入框 → components/chat/ChatComposer
+ *   - VOICE 解析 → composables/useVoiceMessage
+ *
+ * 关键状态:
+ *   - currentSession: 当前会话 (ref<ChatSession | null>)
+ *   - messages: 消息列表 (server-side merge 后的 array)
+ *   - isMobile / drawerVisible: 响应式 (useResponsive)
+ *   - recorder: 录音 hook (useRecorder)
+ *
+ * 事件订阅 (STOMP):
+ *   - /user/queue/messages: 新消息推送 → appendMessage
+ *   - /user/queue/events: 业务事件 (READ/RECALL/PRESENCE/CLOSED/BOT_TRANSFER)
+ *   - /topic/typing/{sid}: 对方输入状态
+ *   - /topic/sessions/new: (仅坐席) 不需订阅
  */
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'

@@ -20,10 +20,13 @@ import MessageList from '@/components/chat/MessageList.vue'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
 import { useResponsive } from '@/composables/useResponsive'
+import { useNotification } from '@/composables/useNotification'
 
 const router = useRouter()
 const userStore = useUserStore()
 const { isMobile, drawerVisible, previewImageUrl } = useResponsive()
+// v6: 桌面通知走 permission-sdk 统一管理
+const { notify: desktopNotify, requestPermission: requestNotifPerm, status: notifStatus } = useNotification({ defaultCooldownMs: 30_000 })
 
 // ============ 会话/状态 ============
 const sessions = ref([])
@@ -78,10 +81,22 @@ function onStompMessage(payload) {
     if (payload.type === 'NEW_WAITING') {
       refreshWaiting()
       if (payload.sessionId) {
+        // 页面内通知 (始终推送)
         ElNotification.info({
           title: '新客户进线',
           message: `会话 #${payload.sessionId} 等待接单${payload.skillTag ? ' (' + payload.skillTag + ')' : ''}`,
           duration: 4000,
+        })
+        // 桌面系统通知 (按 tag 去重, 30s 冷却)
+        desktopNotify({
+          title: '新客户进线',
+          body: `会话 #${payload.sessionId} 等待接单${payload.skillTag ? ' (' + payload.skillTag + ')' : ''}`,
+          tag: 'new-waiting-' + payload.sessionId,
+          onClick: () => {
+            // 点击通知后自动接单
+            const s = waitingList.value.find((x) => x.id === payload.sessionId)
+            if (s) claimOne(s.id)
+          },
         })
       }
       return
@@ -402,6 +417,12 @@ onMounted(async () => {
   await refreshWaiting()
   // 坐席状态 (默认 ONLINE)
   try { agentStatus.value = await imApi.getAgentStatus() } catch {}
+  // 桌面通知权限 (仅在已授权过的场景跳过弹窗, 默认 prompt 时跳过让用户手动开)
+  if (notifStatus.value === 'prompt') {
+    requestNotifPerm().then((ok) => {
+      if (!ok) console.log('[notification] 用户未授权桌面通知')
+    }).catch(() => {})
+  }
   // 定时刷新 waiting 列表 (10s 一次, 防止服务端推送丢失)
   waitingTimer = setInterval(refreshWaiting, 10000)
 })

@@ -47,6 +47,7 @@ import FloatingActionButton from '@/components/fab/FloatingActionButton.vue'
 import QuickQuestions from '@/components/quick-actions/QuickQuestions.vue'
 import ProactiveFeed from '@/components/quick-actions/ProactiveFeed.vue'
 import ProfileCenter from '@/components/profile-360/ProfileCenter.vue'
+import VideoCallDialog from '@/components/video/VideoCallDialog.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -105,6 +106,9 @@ function onFabAction(name) {
     case 'community':
       ElMessage.info('社区功能开发中 (阶段 3)')
       cdpApi.recordEvent('fab_click_community', {}).catch(() => {})
+      break
+    case 'video':
+      startVideoCall()
       break
   }
 }
@@ -391,6 +395,18 @@ async function onVoiceBlob({ blob, seconds, mimeType }) {
   }
 }
 
+// ============ V3 视频通话 ============
+const showVideoCall = ref(false)
+
+function startVideoCall() {
+  if (!session.value || !session.value.agentId) {
+    ElMessage.warning('请先接入人工客服')
+    return
+  }
+  showVideoCall.value = true
+  cdpApi.recordEvent('video_call_start', { peerId: session.value.agentId }, session.value.id).catch(() => {})
+}
+
 // ============ 会话操作 ============
 async function botTransferToHuman() {
   if (!session.value || exiting.value) return
@@ -643,6 +659,11 @@ function onRecall(id) { recall(id) }
                        size="small" type="success" plain @click="botTransferToHuman">
               转接人工
             </el-button>
+            <el-button v-if="session.agentId && session.status !== 'CLOSED'"
+                       size="small" type="primary" plain
+                       @click="startVideoCall">
+              📹 视频通话
+            </el-button>
             <el-button v-if="session.agentId" size="small" type="warning" plain
                        :disabled="exiting || session.status === 'CLOSED'" @click="requestTransfer">
               转接客服
@@ -710,6 +731,16 @@ function onRecall(id) { recall(id) }
     <el-drawer v-model="showProfile" title="个人中心" direction="rtl" size="90%">
       <ProfileCenter :profile="profile" :loading="profileLoading" @refresh="loadProfile" />
     </el-drawer>
+
+    <!-- V3: 视频通话 -->
+    <VideoCallDialog v-if="session && stomp"
+                     v-model="showVideoCall"
+                     :peer-id="session.agentId || 0"
+                     :peer-name="`客服 #${session.agentId}`"
+                     :chat-session-id="session.id"
+                     :stomp="stomp"
+                     :local-uid="userStore.id"
+                     @ended="cdpApi.recordEvent('video_call_end', {}, session?.id).catch(() => {})" />
 
     <!-- 移动端侧栏 -->
     <el-drawer v-if="isMobile" v-model="drawerVisible" title="会话信息" direction="rtl" size="80%">

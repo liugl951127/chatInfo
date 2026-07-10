@@ -1,0 +1,5 @@
+# own-ai-adapter 依赖
+# 与 m3-adapter 的区别: 不依赖 fastapi 全套, 只用基础 HTTP
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.0

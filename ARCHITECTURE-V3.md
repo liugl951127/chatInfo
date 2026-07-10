@@ -16,7 +16,7 @@
 | 客户体验 | 响应式 (等客户问) | 预见式 (AI 主动关怀) |
 | 客户认知 | 单次会话 | 360° 数字孪生 |
 | 服务渠道 | 文字 IM | 文字 + 视频 + 语音 + 社区 |
-| AI 能力 | 关键词匹配 | MiniMax-M3 多模态理解 + 决策 + 生成 |
+| AI 能力 | 关键词匹配 | MiniMax-M3 (兼容) / Java 自研 AI 多模态理解 + 决策 + 生成 |
 
 ---
 
@@ -50,7 +50,7 @@ backend/
 **技术栈**：
 - 行为埋点 SDK (前端) → Redis Stream → Flink / 自研滚动窗口
 - 异常检测: 规则引擎 + 简单统计
-- AI 决策: MiniMax-M3 推理
+- AI 决策: MiniMax-M3 (兼容) / Java 自研 AI 推理
 - 主动触达: STOMP 推送 / 短信 / Push
 
 **数据流**：
@@ -174,9 +174,9 @@ cs-video
 **架构**：
 ```
 cs-voice
-  ├── ASR (语音转文字) - 阿里云/讯飞/MiniMax-M3 audio_understand
-  ├── TTS (文字转语音) - MiniMax-M3 synthesize_speech
-  ├── AI Agent (Function Calling 通话中决策) - MiniMax-M3
+  ├── ASR (语音转文字) - 阿里云/讯飞/MiniMax-M3 (兼容) / Java 自研 AI audio_understand
+  ├── TTS (文字转语音) - MiniMax-M3 (兼容) / Java 自研 AI synthesize_speech
+  ├── AI Agent (Function Calling 通话中决策) - MiniMax-M3 (兼容) / Java 自研 AI
   ├── 通话录音 (合规)
   └── 软电话 SDK (WebRTC + sip.js, 浏览器内拨打电话)
 ```
@@ -190,9 +190,9 @@ cs-voice
 
 ---
 
-## 3. MiniMax-M3 适配方案
+## 3. MiniMax-M3 (兼容) / Java 自研 AI 适配方案
 
-**核心思想**：把 MiniMax-M3 作为"中央 AI 大脑", 替代/辅助 LLM 角色。
+**核心思想**：把 MiniMax-M3 (兼容) / Java 自研 AI 作为"中央 AI 大脑", 替代/辅助 LLM 角色。
 
 ### 3.1 M3Capability 统一接口
 
@@ -212,7 +212,7 @@ public interface M3Capability {
 
 ### 3.2 适配矩阵
 
-| 能力 | MiniMax-M3 工具 | Java 调用 |
+| 能力 | MiniMax-M3 (兼容) / Java 自研 AI 工具 | Java 调用 |
 |------|----------------|----------|
 | 文字对话 | 主对话引擎 | 直接 HTTP 调用 (本地 Python service) |
 | Embedding | 文本向量化 | 内部 Python service / Redis vector |
@@ -330,7 +330,7 @@ cs-m3-adapter/  (新)
 新增 Python 依赖 (m3-adapter)：
 - fastapi
 - uvicorn
-- httpx (调 MiniMax-M3)
+- httpx (调 MiniMax-M3 (兼容) / Java 自研 AI)
 - redis (Stream 消费)
 - pydantic
 
@@ -364,7 +364,7 @@ SIP_SERVER=sip.example.com
 |------|------|------|
 | M3 调用成本不可控 | 成本 | 阶段 1 用静态 fallback, 2-3 加 cache + 限速 |
 | WebRTC 复杂度过高 | 视频延期 | 先 P2P 1v1, 多方延后 |
-| ASR/TTS 准确率 | 体验 | 选成熟云服务 (阿里云/讯飞) + MiniMax-M3 fallback |
+| ASR/TTS 准确率 | 体验 | 选成熟云服务 (阿里云/讯飞) + MiniMax-M3 (兼容) / Java 自研 AI fallback |
 | 数字孪生隐私合规 | 法律 | 严格 PII 脱敏 + 用户授权 + 数据保留策略 |
 | 群智能社区治理 | 内容 | AI 主持人 + 用户举报 + 关键词黑名单 |
 

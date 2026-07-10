@@ -159,10 +159,10 @@ public interface M3Capability {
         private String format;           // mp3 / wav / pcm
     }
 
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
+    @lombok.Data
+    @lombok.Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
     class SentimentResult {
         private double score;            // -1.0 ~ +1.0
         private String label;            // angry / sad / neutral / happy

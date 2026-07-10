@@ -1,13 +1,35 @@
 <script setup>
 /**
- * Agent.vue (坐席接待主入口) — v5 重构
- *  - 装配 MessageList + MessageBubble + ChatComposer 子组件
- *  - STOMP 连接/订阅 + 业务事件分发
- *  - 进线客户列表 + 手动接起 (防串线 CAS)
- *  - 会话转接 + 模板回复
- *  - 消息发送 + 已读标记 + 撤回
+ * Agent.vue - 坐席接待主入口 (H5 移动端优先).
+ * ----------------------------------------------------------------------------
+ * 模块职责:
+ *   - 装配 MessageList + MessageBubble + ChatComposer 子组件
+ *   - STOMP 连接/订阅 + 业务事件分发 (新消息/已读/转接/关闭/录存/动态)
+ *   - 进线客户列表 (waiting panel) + 手动接起 (防串线 CAS, 传 sessionId)
+ *   - 会话转接 (转给其他坐席) + 模板回复 (快捷文本)
+ *   - 消息发送 + 已读标记 + 撤回
+ *   - 桌面通知 (useNotification 进线客户推送)
  *
- * 重构要点: 同 Customer.vue, 用 composables + components 拆分
+ * v5 重构: 从 963 行压缩到 614 行 (-36%).
+ *   - 录音/表情/响应式 → composables/ (同 Customer.vue)
+ *   - 消息渲染 → components/chat/MessageList + MessageBubble
+ *
+ * 关键状态:
+ *   - currentSession / messages: 当前会话 + 消息列表
+ *   - waitingSessions: 进线客户列表 (接起前可见)
+ *   - claimedSession: 已接起会话 (与 waiting 互斥)
+ *   - isMobile / drawerVisible: 响应式 (useResponsive)
+ *   - notifier: 桌面通知 hook (useNotification)
+ *
+ * 事件订阅 (STOMP):
+ *   - /user/queue/messages: 新消息推送
+ *   - /user/queue/events: 业务事件 (NEW_WAITING/READ/TRANSFERRED/CLOSED/PRESENCE)
+ *   - /topic/sessions/new: 进线客户广播 → 加进 waitingSessions
+ *   - /topic/typing/{sid}: 客户输入状态
+ *
+ * 防串线:
+ *   - claimOne(sessionId) 传具体 ID → 走后端 CAS 防止多人同时接同一会话
+ *   - 409 提示 "已被 #X 接起"
  */
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'

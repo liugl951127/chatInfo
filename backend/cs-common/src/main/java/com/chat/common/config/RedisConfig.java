@@ -28,8 +28,18 @@ public class RedisConfig {
 
     @Bean
     public RedisMessageListenerContainer redisMessageListenerContainer(RedisConnectionFactory cf) {
-        RedisMessageListenerContainer c = new RedisMessageListenerContainer();
+        // 匿名子类: 重写 isAutoStartup 返 false, 避免 Spring 生命周期调用 start()
+        // 业务 (WsPushService) 需要时手动调 start()
+        org.springframework.data.redis.listener.RedisMessageListenerContainer c =
+            new org.springframework.data.redis.listener.RedisMessageListenerContainer() {
+                @Override
+                public boolean isAutoStartup() {
+                    return false;  // 关键: 不让 Spring 启动时调 start()
+                }
+            };
         c.setConnectionFactory(cf);
+        c.setRecoveryBackoff(new org.springframework.util.backoff.FixedBackOff(5000L, Long.MAX_VALUE));
+        c.setRecoveryInterval(10000L);
         return c;
     }
 }

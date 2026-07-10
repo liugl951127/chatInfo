@@ -63,8 +63,16 @@ public class WsPushService implements MessageListener {
      */
     @PostConstruct
     public void init() {
-        listenerContainer.addMessageListener(this, new PatternTopic(CommonConstants.REDIS_WS_PUSH_CHANNEL + "*"));
-        log.info("[ws] redis pub/sub listener registered for {}", CommonConstants.REDIS_WS_PUSH_CHANNEL + "*");
+        // 包装 try-catch: Redis 不可达时仅警告, 不阻塞应用启动
+        // 这是解决 'Failed to start bean subProtocolWebSocketHandler' 错误的关键:
+        // WsPushService 是 STOMP 推送路径上的 Bean, Redis 不可达时它创建失败会连累 STOMP
+        try {
+            listenerContainer.addMessageListener(this, new PatternTopic(CommonConstants.REDIS_WS_PUSH_CHANNEL + "*"));
+            log.info("[ws] redis pub/sub listener registered for {}", CommonConstants.REDIS_WS_PUSH_CHANNEL + "*");
+        } catch (Exception e) {
+            log.warn("[ws] redis pub/sub listener init failed (Redis 不可达?), 跨实例推送将不可用: {}",
+                    e.getMessage());
+        }
     }
 
     /**

@@ -29,12 +29,11 @@
  */
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElImageViewer } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Menu, Promotion, User, Phone, VideoCamera, Search } from '@element-plus/icons-vue'
 import { imApi } from '@/api/im'
 import { recordApi } from '@/api/record'
 import { cdpApi } from '@/api/cdp'
-import { predictionApi } from '@/api/prediction'
 import { useUserStore } from '@/stores/user'
 import { StompClient } from '@/utils/ws-client'
 import { ChatRecordSDK } from '@/utils/record-sdk'
@@ -64,7 +63,21 @@ const searchKey = ref('')
 const searchResults = ref([])
 const searchLoading = ref(false)
 const showProfile = ref(false)
+const predHistory = ref([])
+const profileTab = ref('profile')
+const predLoading = ref(false)
 const { feed: proactiveFeed, unreadCount: proactiveUnread, push: pushProactive, dismiss: dismissProactive } = useProactiveFeed()
+
+async function onShowProfile(open) {
+  if (open && predHistory.value.length === 0) {
+    predLoading.value = true
+    try {
+      const r = await predictionApi.getHistory(userStore.id)
+      if (r.code === 200) predHistory.value = r.data || []
+    } catch (e) { console.error(e) }
+    finally { predLoading.value = false }
+  }
+}
 
 async function loadProfile() {
   profileLoading.value = true
@@ -832,9 +845,30 @@ function onRecall(id) { recall(id) }
     <!-- V3: FAB 浮动操作按钮 (始终显示) -->
     <FloatingActionButton :unread-count="proactiveUnread" @action="onFabAction" />
 
-    <!-- V3: 个人中心 360 抽屉 -->
-    <el-drawer v-model="showProfile" title="个人中心" direction="rtl" size="90%">
-      <ProfileCenter :profile="profile" :loading="profileLoading" @refresh="loadProfile" />
+    <!-- V3: 个人中心 360 抽屉 (含主动关怀历史) -->
+    <el-drawer v-model="showProfile" title="个人中心" direction="rtl" size="90%" @open="onShowProfile(true)">
+      <el-tabs v-model="profileTab">
+        <el-tab-pane label="360 画像" name="profile">
+          <ProfileCenter :profile="profile" :loading="profileLoading" @refresh="loadProfile" />
+        </el-tab-pane>
+        <el-tab-pane :label="`主动关怀 (${predHistory.length})`" name="predict">
+          <div v-loading="predLoading" class="pred-history">
+            <div v-if="predHistory.length === 0 && !predLoading" class="pred-empty">
+              还没有主动关怀记录
+            </div>
+            <div v-for="p in predHistory" :key="p.id" class="pred-item">
+              <div class="pred-header">
+                <el-tag size="small" :type="p.action === 'OFFER' ? 'success' : (p.action === 'ALERT' ? 'warning' : 'info')">
+                  {{ p.action === 'OFFER' ? '推荐' : (p.action === 'ALERT' ? '提醒' : p.action) }}
+                </el-tag>
+                <span class="pred-time">{{ new Date(p.createdAt).toLocaleString('zh-CN') }}</span>
+              </div>
+              <div class="pred-rule">规则: {{ p.ruleName || p.ruleId }}</div>
+              <div class="pred-reason">原因: {{ p.reason || '根据您的最近行为预测' }}</div>
+            </div>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </el-drawer>
 
     <!-- V3: 视频通话 -->

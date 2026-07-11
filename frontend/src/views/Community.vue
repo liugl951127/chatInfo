@@ -116,7 +116,7 @@ async function onAcceptReply(reply) {
 }
 
 function isOwner(post) {
-  return post && userStore.userInfo && post.userId === userStore.userInfo.id
+  return post && userStore.id && post.userId === userStore.id
 }
 
 function timeAgo(t) {

@@ -8,7 +8,7 @@
  * 阶段 1: 客户端关键词匹配 (mirror LocalAiService.FaqEngine).
  * 阶段 2: 调后端 /api/ai/faq-search HTTP.
  */
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = defineProps({
   /** 客户最新消息 */

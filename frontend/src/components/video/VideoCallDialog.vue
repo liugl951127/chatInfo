@@ -20,8 +20,8 @@
  *   2. STOMP 收到对端 answer/ice -> 自动处理
  *   3. 用户点挂断 -> hangup() -> 后端 /end
  */
-import { ref, computed, onUnmounted, watch, nextTick } from 'vue'
-import { VideoCamera, Microphone, VideoPause, Phone, Close, FullScreen } from '@element-plus/icons-vue'
+import { ref, computed, onUnmounted, watch } from 'vue'
+import { VideoCamera, Microphone, VideoPause, Phone } from '@element-plus/icons-vue'
 import { videoApi } from '@/api/video'
 import { VideoCall } from '@/utils/webrtc-sdk'
 import { permission } from '@/utils/permission-sdk'

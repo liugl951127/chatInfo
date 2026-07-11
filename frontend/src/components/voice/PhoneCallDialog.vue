@@ -6,7 +6,7 @@
  * 阶段 2: 实时 VAD 自动断句.
  */
 import { ref, watch } from 'vue'
-import { Phone, Microphone, Close, ChatLineRound } from '@element-plus/icons-vue'
+import { Phone, Microphone, ChatLineRound } from '@element-plus/icons-vue'
 import { usePhoneCall } from '@/composables/usePhoneCall'
 
 const props = defineProps({

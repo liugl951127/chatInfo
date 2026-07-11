@@ -4,7 +4,7 @@
  * ----------------------------------------------------------------------------
  * v6 风格: 渐变背景 + 毛玻璃卡片 + blob 动效 + 角色快速选择.
  */
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock, Avatar, ChatDotRound, Service } from '@element-plus/icons-vue'

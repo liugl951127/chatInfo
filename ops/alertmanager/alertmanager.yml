@@ -1,0 +1,108 @@
+global:
+  resolve_timeout: 5m
+
+# 路由
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # P0 → PagerDuty + 钉钉 + 邮件 + 短信
+    - match:
+        severity: P0_CRITICAL
+      receiver: 'pagerduty-critical'
+      continue: true
+    - match:
+        severity: P0_CRITICAL
+      receiver: 'dingtalk-critical'
+      continue: true
+    - match:
+        severity: P0_CRITICAL
+      receiver: 'email-critical'
+
+    # P1 → 钉钉 + 邮件
+    - match:
+        severity: P1_HIGH
+      receiver: 'dingtalk-high'
+      continue: true
+    - match:
+        severity: P1_HIGH
+      receiver: 'email-high'
+
+    # P2 → 邮件
+    - match:
+        severity: P2_MEDIUM
+      receiver: 'email-medium'
+
+    # P3 → Slack
+    - match:
+        severity: P3_LOW
+      receiver: 'slack-low'
+
+# 抑制规则
+inhibit_rules:
+  # 服务 down 时, 抑制其他关于该服务的告警
+  - source_match:
+      severity: P0_CRITICAL
+      alertname: ServiceDown
+    target_match:
+      severity: 'P1_HIGH|P2_MEDIUM'
+    equal: ['service']
+
+# 接收器
+receivers:
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://localhost:5001/alert'
+
+  # P0: 紧急
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_ROUTING_KEY}'
+        send_resolved: true
+        severity: 'critical'
+        description: '{{ .CommonAnnotations.summary }}'
+
+  - name: 'dingtalk-critical'
+    webhook_configs:
+      - url: '${DINGTALK_WEBHOOK_CRITICAL}'
+        send_resolved: true
+
+  - name: 'email-critical'
+    email_configs:
+      - to: 'sre-oncall@example.com'
+        from: 'alertmanager@example.com'
+        smarthost: 'smtp.example.com:587'
+        auth_username: 'alert@example.com'
+        auth_password: '${SMTP_PASSWORD}'
+        send_resolved: true
+
+  # P1: 高
+  - name: 'dingtalk-high'
+    webhook_configs:
+      - url: '${DINGTALK_WEBHOOK_HIGH}'
+        send_resolved: true
+
+  - name: 'email-high'
+    email_configs:
+      - to: 'sre-team@example.com'
+        from: 'alertmanager@example.com'
+        smarthost: 'smtp.example.com:587'
+        send_resolved: true
+
+  # P2: 中
+  - name: 'email-medium'
+    email_configs:
+      - to: 'sre-team@example.com'
+        from: 'alertmanager@example.com'
+        smarthost: 'smtp.example.com:587'
+        send_resolved: true
+
+  # P3: 低
+  - name: 'slack-low'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK}'
+        channel: '#alerts-info'
+        send_resolved: true

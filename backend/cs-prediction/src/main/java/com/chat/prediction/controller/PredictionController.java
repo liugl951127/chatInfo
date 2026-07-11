@@ -58,6 +58,6 @@ public class PredictionController {
                 new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<PredictionEvent>()
                         .eq("user_id", uid)
                         .orderByDesc("created_at")
-                        .last("LIMIT 50")));
+                        .last(true, "LIMIT 50")));
     }
 }

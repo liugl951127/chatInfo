@@ -44,3 +44,35 @@ logging:
 # 录像上传大小限制 (视频分片较大, 调高)
 record:
   storage-path: /tmp/chat-records
+
+# V3: SLA 监控 + 智能告警
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+        step: 30s
+
+# 告警配置 (cs-common AlertSender)
+cs:
+  alert:
+    enabled: ${ALERT_ENABLED:false}
+    webhook-url: ${ALERT_WEBHOOK_URL:}
+    pagerduty-key: ${PAGERDUTY_KEY:}
+    dingtalk-url: ${DINGTALK_WEBHOOK:}
+    feishu-url: ${FEISHU_WEBHOOK:}

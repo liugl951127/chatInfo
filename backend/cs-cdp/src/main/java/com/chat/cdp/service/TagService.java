@@ -146,7 +146,7 @@ public class TagService {
         CdpTag t = tagMapper.selectOne(new QueryWrapper<CdpTag>()
                 .eq("user_id", userId)
                 .eq("tag_key", key)
-                .last("LIMIT 1"));
+                .last(true, "LIMIT 1"));
         return t == null ? null : t.getTagValue();
     }
 

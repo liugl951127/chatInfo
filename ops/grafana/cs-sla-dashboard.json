@@ -1,0 +1,145 @@
+{
+  "title": "V3 智能客服 SLA 看板",
+  "uid": "cs-sla",
+  "tags": ["cs", "sla", "prometheus"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(cs_http_requests_total, service)",
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "📊 服务状态",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {"expr": "up{job=~\"cs-*\"}", "legendFormat": "{{job}}"}
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          },
+          "mappings": [
+            {"options": {"0": {"text": "DOWN", "color": "red"}}, "type": "value"},
+            {"options": {"1": {"text": "UP", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "QPS (每秒请求数)",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 6, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(cs_http_requests_total{service=~\"$service\"}[1m])) by (service)",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "P99 延迟 (ms)",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(cs_http_duration_seconds_bucket[5m])) by (le, service)) * 1000",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "thresholds": [{"value": 500, "color": "orange", "op": "gt"}]
+    },
+    {
+      "id": 4,
+      "title": "错误率 (%)",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(cs_http_requests_total{status=~\"5xx\"}[5m])) by (service) / sum(rate(cs_http_requests_total[5m])) by (service) * 100",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent"}}
+    },
+    {
+      "id": 5,
+      "title": "WebSocket 活跃连接",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "cs_ws_connections", "legendFormat": "Active WS"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "JVM 堆内存",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{area=\"heap\"} / jvm_memory_max_bytes{area=\"heap\"} * 100",
+          "legendFormat": "{{instance}}"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent"}}
+    },
+    {
+      "id": 7,
+      "title": "业务事件",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(cs_business_events_total[5m])) by (type)",
+          "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "STOMP 消息流量",
+      "type": "graph",
+      "datasource": "Prometheus",
+      "gridPos": {"x": 0, "y": 24, "w": 24, "h": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(cs_stomp_messages_total[1m])) by (direction)",
+          "legendFormat": "{{direction}}"
+        }
+      ]
+    }
+  ]
+}

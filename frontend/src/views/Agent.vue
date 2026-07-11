@@ -536,6 +536,9 @@ onBeforeUnmount(() => {
       <el-button size="small" round plain class="search-btn" @click="showSearch = true" v-if="current">
         <el-icon><Search /></el-icon>&nbsp;搜消息
       </el-button>
+      <el-button size="small" round plain @click="$router.push('/monitor')" class="mon-btn">
+        <el-icon><Monitor /></el-icon>&nbsp;监控
+      </el-button>
       <el-button size="small" round class="dash-btn" @click="showDashboard = true">
         <el-icon><DataAnalysis /></el-icon>&nbsp;看板
       </el-button>

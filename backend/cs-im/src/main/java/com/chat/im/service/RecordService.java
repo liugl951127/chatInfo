@@ -243,7 +243,7 @@ public class RecordService {
         // step 2: 幂等检查: 同一 (record_id, sequence_no) 已存在 -> 返现有记录
         //    场景: 浏览器 SDK 重试 / 网络抖动重传
         QueryWrapper<ChatRecordChunk> dupQw = new QueryWrapper<>();
-        dupQw.eq("record_id", recordId).eq("sequence_no", sequenceNo).last("LIMIT 1");
+        dupQw.eq("record_id", recordId).eq("sequence_no", sequenceNo).last(true, "LIMIT 1");
         ChatRecordChunk existing = chunkMapper.selectOne(dupQw);
         if (existing != null) {
             // 已存在: 幂等返回, 不重复入库

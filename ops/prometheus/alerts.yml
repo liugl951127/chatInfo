@@ -1,0 +1,119 @@
+groups:
+- name: cs-sla-alerts
+  interval: 30s
+  rules:
+  # ========== P0 紧急 (立即响应) ==========
+  - alert: ServiceDown
+    expr: up{job="cs-*} == 0
+    for: 1m
+    labels:
+      severity: P0_CRITICAL
+      team: sre
+    annotations:
+      summary: "{{ $labels.job }} 服务不可用"
+      description: "服务 {{ $labels.instance }} 已下线 1 分钟, 立即排查"
+      runbook: https://wiki.example.com/runbook/service-down
+
+  - alert: HighErrorRate
+    expr: |
+      sum(rate(cs_http_requests_total{status=~"5xx"}[5m]))
+      /
+      sum(rate(cs_http_requests_total[5m])) > 0.05
+    for: 2m
+    labels:
+      severity: P0_CRITICAL
+      team: sre
+    annotations:
+      summary: "5xx 错误率超 5%"
+      description: "当前: {{ $value | humanizePercentage }}"
+
+  - alert: WebSocketConnectionsZero
+    expr: cs_ws_connections == 0 and cs_ws_connections_offset > 100
+    for: 30s
+    labels:
+      severity: P0_CRITICAL
+      team: sre
+    annotations:
+      summary: "WebSocket 连接跌到 0"
+      description: "之前有 100+ 连接, 现在 0, 推送服务可能挂了"
+
+  # ========== P1 高 (1 小时内) ==========
+  - alert: HighLatency
+    expr: |
+      histogram_quantile(0.99, sum(rate(cs_http_duration_seconds_bucket[5m])) by (le, endpoint)) > 1
+    for: 5m
+    labels:
+      severity: P1_HIGH
+      team: sre
+    annotations:
+      summary: "P99 延迟超 1s (endpoint: {{ $labels.endpoint }})"
+      description: "当前: {{ $value }}s"
+
+  - alert: RedisDown
+    expr: redis_up == 0
+    for: 30s
+    labels:
+      severity: P1_HIGH
+      team: sre
+    annotations:
+      summary: "Redis 不可用"
+      description: "缓存/锁/队列服务降级"
+
+  - alert: DatabaseConnectionsHigh
+    expr: hikaricp_connections_active / hikaricp_connections_max > 0.8
+    for: 5m
+    labels:
+      severity: P1_HIGH
+      team: sre
+    annotations:
+      summary: "DB 连接池超 80% (cs-{{ $labels.service }})"
+
+  # ========== P2 中 (4 小时内) ==========
+  - alert: HighMemoryUsage
+    expr: |
+      (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.9
+    for: 10m
+    labels:
+      severity: P2_MEDIUM
+      team: sre
+    annotations:
+      summary: "JVM 堆超 90% ({{ $labels.instance }})"
+
+  - alert: GcPauseTooLong
+    expr: |
+      rate(jvm_gc_pause_seconds_sum[5m]) > 0.1
+    for: 5m
+    labels:
+      severity: P2_MEDIUM
+      team: sre
+    annotations:
+      summary: "GC 暂停时间过长 ({{ $labels.instance }})"
+
+  - alert: DiskSpaceLow
+    expr: |
+      (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+    for: 5m
+    labels:
+      severity: P2_MEDIUM
+      team: ops
+    annotations:
+      summary: "磁盘剩余空间 < 10%"
+
+  - alert: RecordUploadSlow
+    expr: |
+      histogram_quantile(0.95, sum(rate(cs_record_upload_seconds_bucket[5m])) by (le)) > 10
+    for: 5m
+    labels:
+      severity: P2_MEDIUM
+      team: cs
+    annotations:
+      summary: "录像上传 P95 超 10s"
+
+  # ========== P3 低 (24 小时内) ==========
+  - alert: DailyActiveUsersLow
+    expr: cs_active_users_24h < 100
+    labels:
+      severity: P3_LOW
+      team: business
+    annotations:
+      summary: "日活 < 100, 业务可能有问题"

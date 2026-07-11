@@ -155,7 +155,7 @@ public class SessionService {
                 .eq(ChatSession::getCustomerId, uid)                                 // 客户 ID 匹配
                 .eq(ChatSession::getStatus, CommonConstants.SESSION_ACTIVE)           // 状态=ACTIVE
                 .orderByDesc(ChatSession::getUpdatedAt)                              // 最新优先
-                .last("LIMIT 1"));                                                   // 只取一条
+                .last(true, "LIMIT 1"));                                                   // 只取一条
         if (active != null) return ApiResponse.ok(active);
 
         // 3) 构建新会话实体
@@ -516,7 +516,7 @@ public class SessionService {
         } else {
             q.eq(ChatSession::getCustomerId, uid);                            // 客户: customer_id=uid
         }
-        q.orderByDesc(ChatSession::getUpdatedAt).last("LIMIT 50");            // 最新 50 条
+        q.orderByDesc(ChatSession::getUpdatedAt).last(true, "LIMIT 50");            // 最新 50 条
         List<ChatSession> sessions = sessionMapper.selectList(q);
         // 转 DTO + 查对方在线状态
         List<com.chat.im.dto.SessionView> views = new java.util.ArrayList<>(sessions.size());

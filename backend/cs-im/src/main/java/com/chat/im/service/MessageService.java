@@ -382,7 +382,7 @@ public class MessageService {
         List<ChatMessage> msgs = messageMapper.selectList(new LambdaQueryWrapper<ChatMessage>()
                 .eq(ChatMessage::getSessionId, sessionId)
                 .orderByAsc(ChatMessage::getCreatedAt)
-                .last("LIMIT 500"));
+                .last(true, "LIMIT 500"));
         // 逐条处理 (排除自己发的 + 已撤回的)
         for (ChatMessage m : msgs) {
             if (uid.equals(m.getSenderId())) continue;                       // 自己发的跳过
@@ -470,7 +470,7 @@ public class MessageService {
         List<ChatMessage> rows = messageMapper.selectList(new LambdaQueryWrapper<ChatMessage>()
                 .eq(ChatMessage::getSessionId, sessionId)
                 .orderByAsc(ChatMessage::getCreatedAt)
-                .last("LIMIT " + n));
+                .last(true, "LIMIT " + n));
         return ApiResponse.ok(rows.stream().map(this::toDto).toList());
     }
 
@@ -520,11 +520,11 @@ public class MessageService {
                 .eq(ChatMessage::getSessionId, sessionId)
                 .like(ChatMessage::getContent, keyword.trim())               // LIKE 模糊匹配
                 .orderByDesc(ChatMessage::getCreatedAt)                      // 倒序
-                .last("LIMIT " + n);
+                .last(true, "LIMIT " + n);
         // 可选时间窗
-        if (fromTs != null) q.ge(ChatMessage::getCreatedAt(),
+        if (fromTs != null) q.ge(true, ChatMessage::getCreatedAt,
                 java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(fromTs), java.time.ZoneId.systemDefault()));
-        if (toTs != null) q.le(ChatMessage::getCreatedAt(),
+        if (toTs != null) q.le(true, ChatMessage::getCreatedAt,
                 java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(toTs), java.time.ZoneId.systemDefault()));
 
         List<ChatMessage> rows = messageMapper.selectList(q);

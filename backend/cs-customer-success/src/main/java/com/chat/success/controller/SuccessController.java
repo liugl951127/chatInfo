@@ -5,6 +5,7 @@ import com.chat.common.security.UserContext;
 import com.chat.success.entity.HealthScoreHistory;
 import com.chat.success.service.AgentStatsService;
 import com.chat.success.service.HealthScoreService;
+import com.chat.success.service.RealtimeStatsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class SuccessController {
 
     private final HealthScoreService healthService;
     private final AgentStatsService agentStatsService;
+    private final RealtimeStatsService realtimeStatsService;
 
     @Operation(summary = "我的健康分 (最新)")
     @GetMapping("/health/me")
@@ -88,5 +90,11 @@ public class SuccessController {
     public ApiResponse<AgentStatsService.AgentStats> agentStats(@RequestParam(required = false) Long agentId) {
         if (agentId == null) agentId = UserContext.userId();
         return ApiResponse.ok(agentStatsService.getStats(agentId));
+    }
+
+    @Operation(summary = "实时监控统计 (大屏用) - 会话量/接通量/满意度")
+    @GetMapping("/realtime")
+    public ApiResponse<java.util.Map<String, Object>> realtime() {
+        return ApiResponse.ok(realtimeStatsService.getRealtimeStats());
     }
 }

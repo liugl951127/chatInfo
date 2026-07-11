@@ -1557,5 +1557,91 @@
   </footer>
 
 </div>
+
+<div class="section" id="realtime-flow">
+  <h2>🔴 V3.0 新增流程</h2>
+
+  <div class="flow">
+    <h3>📡 实时推送流程 (大屏 0 延迟刷新)</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>客户/坐席触发</strong><br>SessionService.create/close/claim/rate/transfer</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>业务事件</strong><br>wsPushService.broadcastRealtime("SESSION_CLOSED", data)</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>STOMP 广播</strong><br>messagingTemplate.convertAndSend("/topic/realtime", json)</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>3 端订阅</strong><br>大屏 + Agent + Customer 同时收到</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>立即响应</strong><br>大屏 fetchData() / Agent refreshSessions() / Customer reload</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>📊 SLA 监控 + 告警流程</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>指标采集</strong><br>SlaMetrics 记录 4 黄金信号 (Latency/Traffic/Errors/Saturation)</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>Prometheus 抓取</strong><br>/actuator/prometheus 每 15s 抓一次</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>规则评估</strong><br>12 条告警规则 (alerts.yml) 评估</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>触发告警</strong><br>P0 错误激增 / P99 超 1s / JVM 满 / WS 掉 0</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>4 通道发送</strong><br>PagerDuty + 钉钉 + 飞书 + 邮件</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">6</div><div class="step-body"><strong>运维响应</strong><br>oncall 接收 → 排障 → 解决 → 标记 resolved</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>🔁 端到端业务流程 (E2E)</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>登录</strong><br>Login.vue → authApi.login → JWT token</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>发起咨询</strong><br>Customer → createSession(skill) → STOMP 连接</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>坐席接单</strong><br>Agent claimOne → CAS UPDATE → status=ACTIVE</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>智能回复</strong><br>cs-ai /faq → SmartReplySuggestions</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>富媒体</strong><br>WebRTC 视频 / ASR 电话 / 录像</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">6</div><div class="step-body"><strong>转人工 / 评分</strong><br>transferToHuman / rateSession 推送</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">7</div><div class="step-body"><strong>关会 + 健康分</strong><br>close → healthScore.compute → dashboard 更新</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>🤖 自研 AI 情感分析 (V3.0)</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>输入文本</strong><br>用户输入 → ChatComposer → debounce 200ms</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>优先后端</strong><br>aiApi.sentiment(text) → cs-ai /api/ai/sentiment</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>Java 算法</strong><br>tokenize + 否定 + 程度修饰 + 累加得分</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>归一化</strong><br>clamp(score, -1, 1) → angry/sad/happy/neutral</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>降级本地</strong><br>后端不可达 → 客户端关键词 (POSITIVE/NEGATIVE)</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">6</div><div class="step-body"><strong>显示指示器</strong><br>SentimentIndicator.vue 颜色 + emoji</div></div>
+    </div>
+  </div>
+</div>
+
+<style>
+.section { margin: 32px 0; padding: 24px; background: #fff; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+.section h2 { margin: 0 0 24px; color: #1e293b; font-size: 24px; }
+.flow { margin: 24px 0; padding: 20px; background: #f8fafc; border-radius: 12px; }
+.flow h3 { margin: 0 0 16px; color: #334155; font-size: 18px; }
+.flow-steps { display: flex; align-items: stretch; gap: 4px; flex-wrap: wrap; }
+.step { flex: 1; min-width: 120px; background: #fff; border-radius: 8px; padding: 12px; border-left: 4px solid #3b82f6; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.step:nth-child(odd) { border-left-color: #10b981; }
+.step-num { font-size: 24px; font-weight: 700; color: #3b82f6; margin-bottom: 4px; }
+.step-body { font-size: 12px; color: #475569; line-height: 1.5; }
+.arrow { display: flex; align-items: center; font-size: 20px; color: #94a3b8; }
+</style>
+
 </body>
 </html>

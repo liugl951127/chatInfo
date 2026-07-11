@@ -149,6 +149,21 @@ public class WsPushService implements MessageListener {
      * @param sessionId 新等待会话 ID
      * @param skillTag 技能标签 (坐席按技能筛选)
      */
+    /**
+     * 广播大屏实时统计 (触发条件: 会话创建/关闭/转人工/评分).
+     * 大屏 RealtimeMonitor.vue 订阅 /topic/realtime.
+     * @param event 事件类型 (CREATED/CLOSED/TRANSFERRED/RATED)
+     * @param payload 数据载荷
+     */
+    public void broadcastRealtime(String event, Object payload) {
+        try {
+            String json = mapper.writeValueAsString(java.util.Map.of("event", event, "data", payload, "ts", System.currentTimeMillis()));
+            messagingTemplate.convertAndSend("/topic/realtime", json);
+        } catch (Exception e) {
+            log.error("broadcastRealtime failed", e);
+        }
+    }
+
     public void notifyAgentNewWaiting(Long sessionId, String skillTag) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("type", "NEW_WAITING");

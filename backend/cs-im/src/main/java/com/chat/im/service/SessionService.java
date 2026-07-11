@@ -310,6 +310,7 @@ public class SessionService {
      */
     @Transactional
     public ApiResponse<ChatSession> claim(Long sessionId) {
+        wsPushService.broadcastRealtime("SESSION_CLAIMED", null);
         // 0) 鉴权: 从 ThreadLocal 取当前坐席 ID
         Long agentId = UserContext.userId();
         if (agentId == null) return ApiResponse.fail(401, "未登录");
@@ -399,6 +400,7 @@ public class SessionService {
      */
     @Transactional
     public ApiResponse<ChatSession> transfer(Long sessionId, Long toAgentId, String reason) {
+        wsPushService.broadcastRealtime("SESSION_TRANSFERRED", java.util.Map.of("sessionId", sessionId, "toAgentId", toAgentId));
         // step 1: 校验
         Long fromAgentId = UserContext.userId();                            // 当前坐席 (转出方)
         ChatSession s = sessionMapper.selectById(sessionId);
@@ -462,6 +464,7 @@ public class SessionService {
      */
     @Transactional
     public ApiResponse<Void> rate(Long sessionId, Integer rating, String comment) {
+        wsPushService.broadcastRealtime("SESSION_RATED", java.util.Map.of("sessionId", sessionId, "rating", rating));
         if (rating == null || rating < 1 || rating > 5) {
             return ApiResponse.fail(400, "评分必须在 1-5 之间");
         }
@@ -563,6 +566,7 @@ public class SessionService {
      */
     @Transactional
     public ApiResponse<Void> close(Long sessionId) {
+        wsPushService.broadcastRealtime("SESSION_CLOSED", java.util.Map.of("sessionId", sessionId));
         Long uid = UserContext.userId();
         String role = UserContext.role();
         ChatSession s = sessionMapper.selectById(sessionId);

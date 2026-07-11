@@ -27,7 +27,7 @@
  *   - /topic/typing/{sid}: 对方输入状态
  *   - /topic/sessions/new: (仅坐席) 不需订阅
  */
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from "vue"
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Menu, Promotion, User, Phone, VideoCamera, Search } from '@element-plus/icons-vue'
@@ -248,7 +248,19 @@ async function startSession() {
 let stomp = null
 let typingTimer = null
 function onStompMessage(payload) {
-  if (!payload || !session.value) return
+  if (!payload) return
+  // 实时统计事件 (大屏推送)
+  if (payload.event) {
+    if (payload.event === 'SESSION_CLOSED' && session.value && payload.data?.sessionId === session.value.id) {
+      ElMessage.success('会话已结束, 感谢您的咨询')
+      stopRecorder('SESSION_CLOSED').catch(() => {})
+      setTimeout(() => { window.location.reload() }, 2000)
+    } else if (payload.event === 'SESSION_RATED') {
+      ElMessage.success('感谢您的评分!')
+    }
+    return
+  }
+  if (!session.value) return
   if (payload.sessionId && payload.sessionId !== session.value.id) return
   // 服务端事件 (BOT_TRANSFER / CLOSED / TRANSFERRED / PRESENCE / READ / RECALL)
   if (payload && (payload.type || payload.sessionId)) {

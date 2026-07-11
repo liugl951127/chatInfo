@@ -12,14 +12,54 @@
  * 数据源: GET /api/success/realtime
  */
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { Client } from '@stomp/stompjs'
 import { realtimeApi } from '@/api/realtime'
+import { useUserStore } from '@/stores/user'
 import { Connection, ChatDotRound, Timer, Star, User, Bell, Refresh, DataLine } from '@element-plus/icons-vue'
 
+const userStore = useUserStore()
 const stats = ref(null)
 const loading = ref(false)
 const lastUpdate = ref(null)
 const isLive = ref(true)
+const eventLog = ref([])  // 最近事件
 let timer = null
+let stompClient = null
+
+// ============== STOMP 实时推送 ==============
+function connectStomp() {
+  try {
+    const apiBase = import.meta.env.VITE_API_BASE || '/api'
+    const wsUrl = apiBase.replace('/api', '') + '/ws/agent'
+    stompClient = new Client({
+      webSocketFactory: () => new WebSocket(wsUrl),
+      reconnectDelay: 5000,
+      heartbeatIncoming: 10000,
+      heartbeatOutgoing: 10000,
+      connectHeaders: { Authorization: 'Bearer ' + (userStore.token || '') },
+    })
+    stompClient.onConnect = () => {
+      stompClient.subscribe('/topic/realtime', (msg) => {
+        try {
+          const evt = JSON.parse(msg.body)
+          // 记录最近 20 个事件
+          eventLog.value.unshift({ ...evt, time: new Date().toLocaleTimeString('zh-CN') })
+          if (eventLog.value.length > 20) eventLog.value.pop()
+          // 触发刷新
+          fetchData()
+        } catch (e) { console.error('[realtime] parse failed', e) }
+      })
+    }
+    stompClient.onStompError = (f) => { console.error('[realtime] STOMP error', f) }
+    stompClient.activate()
+  } catch (e) {
+    console.error('[realtime] STOMP connect failed, fallback to polling', e)
+  }
+}
+
+function disconnectStomp() {
+  if (stompClient) { stompClient.deactivate(); stompClient = null }
+}
 
 const fetchData = async () => {
   if (!isLive.value) return
@@ -38,11 +78,13 @@ const fetchData = async () => {
 const startTimer = () => {
   if (timer) return
   fetchData()
-  timer = setInterval(fetchData, 5000)
+  timer = setInterval(fetchData, 5000)  // polling 兜底 (5s)
+  connectStomp()  // STOMP 实时推送
 }
 
 const stopTimer = () => {
   if (timer) { clearInterval(timer); timer = null }
+  disconnectStomp()
 }
 
 const toggle = () => {
@@ -52,7 +94,10 @@ const toggle = () => {
 }
 
 onMounted(startTimer)
-onUnmounted(stopTimer)
+onUnmounted(() => {
+  stopTimer()
+  disconnectStomp()
+})
 
 // ============== 计算属性 (大数字) ==============
 const todaySessions = computed(() => stats.value?.todaySessions ?? 0)
@@ -105,7 +150,19 @@ const lastUpdateText = computed(() => {
       </div>
     </header>
 
-    <!-- 4 个核心指标卡 -->
+    <!-- 实时事件流 -->
+      <div v-if="eventLog.length > 0" class="event-stream">
+        <div class="es-title">📡 实时事件流 (最近 {{ eventLog.length }} 条)</div>
+        <div class="es-list">
+          <div v-for="(e, i) in eventLog" :key="i" class="es-item">
+            <span class="es-time">{{ e.time }}</span>
+            <span class="es-type" :class="'es-' + e.event">{{ e.event }}</span>
+            <span v-if="e.data" class="es-data">{{ JSON.stringify(e.data) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 个核心指标卡 -->
     <div class="metric-row">
       <div class="metric-card primary">
         <div class="mc-icon"><el-icon><ChatDotRound /></el-icon></div>

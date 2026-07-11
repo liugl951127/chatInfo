@@ -139,6 +139,26 @@ async function onSearch() {
 
 function onStompMessage(payload) {
   if (!payload) return
+  // 0) 实时统计事件 (大屏推送, 也用于此处状态刷新)
+  if (payload.event) {
+    if (payload.event === 'SESSION_CLOSED') {
+      // 会话被关闭, 立即刷新列表
+      refreshSessions()
+      if (current.value && payload.data?.sessionId === current.value.id) {
+        ElMessage.info('会话已关闭')
+      }
+    } else if (payload.event === 'SESSION_CREATED') {
+      refreshSessions()
+      refreshWaiting()
+    } else if (payload.event === 'SESSION_CLAIMED') {
+      refreshWaiting()
+    } else if (payload.event === 'SESSION_RATED') {
+      ElMessage.success(`客户评分: ${'⭐'.repeat(payload.data?.rating || 0)}`)
+    } else if (payload.event === 'SESSION_TRANSFERRED') {
+      ElMessage.info('会话已转接')
+    }
+    return
+  }
   // 1) 业务事件
   if (payload.type) {
     if (payload.type === 'PRESENCE') {

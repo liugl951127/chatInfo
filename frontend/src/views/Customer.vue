@@ -30,7 +30,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElImageViewer } from 'element-plus'
-import { Menu, Promotion, User } from '@element-plus/icons-vue'
+import { Menu, Promotion, User, Phone, VideoCamera, Search } from '@element-plus/icons-vue'
 import { imApi } from '@/api/im'
 import { recordApi } from '@/api/record'
 import { cdpApi } from '@/api/cdp'
@@ -41,6 +41,7 @@ import { ChatRecordSDK } from '@/utils/record-sdk'
 import MessageList from '@/components/chat/MessageList.vue'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
+import PhoneCallDialog from '@/components/voice/PhoneCallDialog.vue'
 import { useResponsive } from '@/composables/useResponsive'
 import { useProactiveFeed } from '@/composables/useProactiveFeed'
 import FloatingActionButton from '@/components/fab/FloatingActionButton.vue'
@@ -56,6 +57,12 @@ const { isMobile, drawerVisible, previewImageUrl } = useResponsive()
 // ============ V3 数字孪生 + 预见式服务 (阶段 1) ============
 const profile = ref(null)
 const profileLoading = ref(false)
+const showPhone = ref(false)
+const showVideo = ref(false)
+const showSearch = ref(false)
+const searchKey = ref('')
+const searchResults = ref([])
+const searchLoading = ref(false)
 const showProfile = ref(false)
 const { feed: proactiveFeed, unreadCount: proactiveUnread, push: pushProactive, dismiss: dismissProactive } = useProactiveFeed()
 
@@ -80,6 +87,22 @@ onMounted(() => {
 })
 
 // ============ V3: FAB / 快捷问题 / 主动推送 处理器 ============
+async function onSearch() {
+  if (!searchKey.value.trim() || !session.value) return
+  searchLoading.value = true
+  try {
+    const r = await imApi.searchMessages(session.value.id, searchKey.value, 50)
+    if (r.code === 200) searchResults.value = r.data || []
+  } catch (e) { console.error(e) }
+  finally { searchLoading.value = false }
+}
+
+function highlight(text, key) {
+  if (!text || !key) return text || ''
+  const esc = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return text.replace(new RegExp(esc, 'gi'), m => '<mark>' + m + '</mark>')
+}
+
 function onFabAction(name) {
   switch (name) {
     case 'chat':
@@ -647,8 +670,39 @@ function onRecall(id) { recall(id) }
       <el-button v-if="!session" type="primary" class="side-btn" round @click="showSkillPicker = true">
         <el-icon><Promotion /></el-icon>&nbsp;开始咨询
       </el-button>
-      <el-button v-else link @click="logout">退出</el-button>
+      <template v-else>
+        <el-button class="side-btn" round plain @click="showSearch = true">
+          <el-icon><Search /></el-icon>&nbsp;搜索
+        </el-button>
+        <el-button link @click="logout">退出</el-button>
+      </template>
     </header>
+
+    <!-- 消息搜索 -->
+    <el-dialog v-model="showSearch" title="消息搜索" width="600px" top="8vh">
+      <div class="search-bar">
+        <el-input v-model="searchKey" placeholder="输入关键词" clearable autofocus
+                  @keyup.enter="onSearch">
+          <template #append>
+            <el-button :icon="Search" :loading="searchLoading" @click="onSearch">搜索</el-button>
+          </template>
+        </el-input>
+      </div>
+      <div v-loading="searchLoading" class="search-results">
+        <div v-if="searchResults.length === 0 && !searchLoading" class="search-empty">
+          {{ searchKey ? '没有匹配的消息' : '输入关键词搜索当前会话消息' }}
+        </div>
+        <div v-for="m in searchResults" :key="m.id" class="search-item">
+          <div class="search-item-header">
+            <el-tag size="small" :type="m.fromRole === 'CUSTOMER' ? 'primary' : 'success'">
+              {{ m.fromRole === 'CUSTOMER' ? '我' : '客服' }}
+            </el-tag>
+            <span class="search-time">{{ new Date(m.createdAt).toLocaleString('zh-CN') }}</span>
+          </div>
+          <div class="search-content" v-html="highlight(m.content, searchKey)" />
+        </div>
+      </div>
+    </el-dialog>
 
     <main>
       <!-- 桌面侧栏 -->
@@ -757,10 +811,23 @@ function onRecall(id) { recall(id) }
             @send="send"
             @typing="onTyping"
             @image-pick="onImagePick"
-            @voice-blob="onVoiceBlob" />
+            @voice-blob="onVoiceBlob">
+            <template #toolbar-extra>
+              <el-button :icon="Phone" size="large" class="icon-btn phone-btn"
+                         @click="showPhone = true" title="智能电话" />
+              <el-button :icon="VideoCamera" size="large" class="icon-btn video-btn"
+                         @click="showVideo = true" title="视频会话" />
+            </template>
+          </ChatComposer>
         </template>
       </section>
     </main>
+
+    <!-- 智能电话 -->
+    <PhoneCallDialog v-if="showPhone" v-model="showPhone" :callee-uid="0" callee-name="AI 客服" />
+
+    <!-- 视频通话 (V3 渠道 4) -->
+    <VideoCallDialog v-if="showVideo" v-model="showVideo" :session="session" :stomp="stomp" />
 
     <!-- V3: FAB 浮动操作按钮 (始终显示) -->
     <FloatingActionButton :unread-count="proactiveUnread" @action="onFabAction" />

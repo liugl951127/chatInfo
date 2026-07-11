@@ -32,4 +32,9 @@ export const communityApi = {
     const r = await http.post(`/api/community/posts/${id}/like`)
     return r.data
   },
+  /** 接受某条回复为最佳答案 (仅发贴人) */
+  async acceptReply(replyId) {
+    const r = await http.post(`/api/community/replies/${replyId}/accept`)
+    return r.data
+  },
 }

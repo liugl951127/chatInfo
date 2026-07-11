@@ -34,7 +34,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import { Menu, Document, Goblet, ChatLineRound, Bell, User, Promotion, DataAnalysis } from '@element-plus/icons-vue'
+import { Menu, Document, Goblet, ChatLineRound, Bell, User, Promotion, DataAnalysis, VideoCamera} from '@element-plus/icons-vue'
 import { imApi } from '@/api/im'
 import { useUserStore } from '@/stores/user'
 import { StompClient } from '@/utils/ws-client'
@@ -43,6 +43,7 @@ import MessageBubble from '@/components/chat/MessageBubble.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
 import SmartReplySuggestions from '@/components/chat/SmartReplySuggestions.vue'
 import AgentDashboard from '@/components/dashboard/AgentDashboard.vue'
+import VideoCallDialog from '@/components/video/VideoCallDialog.vue'
 import { useResponsive } from '@/composables/useResponsive'
 import { useNotification } from '@/composables/useNotification'
 
@@ -50,6 +51,17 @@ const router = useRouter()
 const userStore = useUserStore()
 const { isMobile, drawerVisible, previewImageUrl } = useResponsive()
 const showDashboard = ref(false)
+const showVideo = ref(false)
+function highlight(text, key) {
+  if (!text || !key) return text || ''
+  const esc = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return text.replace(new RegExp(esc, 'gi'), m => '<mark>' + m + '</mark>')
+}
+
+const showSearch = ref(false)
+const searchKey = ref('')
+const searchResults = ref([])
+const searchLoading = ref(false)
 // v6: 桌面通知走 permission-sdk 统一管理
 const { notify: desktopNotify, requestPermission: requestNotifPerm, status: notifStatus } = useNotification({ defaultCooldownMs: 30_000 })
 
@@ -113,6 +125,17 @@ function scrollToBottom() {
 let stomp = null
 let subscribedSessionId = null
 let typingTimer = null
+
+
+async function onSearch() {
+  if (!searchKey.value.trim() || !current.value) return
+  searchLoading.value = true
+  try {
+    const r = await imApi.searchMessages(current.value.id, searchKey.value, 50)
+    if (r.code === 200) searchResults.value = r.data || []
+  } catch (e) { console.error(e) }
+  finally { searchLoading.value = false }
+}
 
 function onStompMessage(payload) {
   if (!payload) return
@@ -510,6 +533,9 @@ onBeforeUnmount(() => {
         <el-option label="忙碌" value="BUSY" />
         <el-option label="离线" value="OFFLINE" />
       </el-select>
+      <el-button size="small" round plain class="search-btn" @click="showSearch = true" v-if="current">
+        <el-icon><Search /></el-icon>&nbsp;搜消息
+      </el-button>
       <el-button size="small" round class="dash-btn" @click="showDashboard = true">
         <el-icon><DataAnalysis /></el-icon>&nbsp;看板
       </el-button>
@@ -519,6 +545,35 @@ onBeforeUnmount(() => {
     <!-- 坐席数据看板 -->
     <el-dialog v-model="showDashboard" title="数据看板" width="900px" top="5vh">
       <AgentDashboard />
+    </el-dialog>
+
+    <!-- 视频通话 (V3 渠道 4) -->
+    <VideoCallDialog v-if="showVideo" v-model="showVideo" :session="current" :stomp="stomp" />
+
+    <!-- 消息搜索 -->
+    <el-dialog v-model="showSearch" title="消息搜索" width="600px" top="8vh">
+      <div class="search-bar">
+        <el-input v-model="searchKey" placeholder="输入关键词" clearable autofocus
+                  @keyup.enter="onSearch">
+          <template #append>
+            <el-button :icon="Search" :loading="searchLoading" @click="onSearch">搜索</el-button>
+          </template>
+        </el-input>
+      </div>
+      <div v-loading="searchLoading" class="search-results">
+        <div v-if="searchResults.length === 0 && !searchLoading" class="search-empty">
+          {{ searchKey ? '没有匹配的消息' : '输入关键词搜索当前会话消息' }}
+        </div>
+        <div v-for="m in searchResults" :key="m.id" class="search-item">
+          <div class="search-item-header">
+            <el-tag size="small" :type="m.fromRole === 'CUSTOMER' ? 'primary' : 'success'">
+              {{ m.fromRole === 'CUSTOMER' ? '客户' : '我' }}
+            </el-tag>
+            <span class="search-time">{{ new Date(m.createdAt).toLocaleString('zh-CN') }}</span>
+          </div>
+          <div class="search-content" v-html="highlight(m.content, searchKey)" />
+        </div>
+      </div>
     </el-dialog>
 
     <main>
@@ -657,6 +712,9 @@ onBeforeUnmount(() => {
             @voice-blob="onVoiceBlob">
             <template #toolbar-extra>
               <el-button size="small" @click="openCanned" plain>📋 模板</el-button>
+              <el-button size="small" type="primary" plain @click="showVideo = true">
+                <el-icon><VideoCamera /></el-icon>&nbsp;视频
+              </el-button>
             </template>
           </ChatComposer>
         </template>
@@ -904,6 +962,21 @@ main { flex: 1; display: flex; min-height: 0; }
   box-shadow: none;
 }
 
+.search-btn { background: #fff; color: #606266; border: 1px solid #dcdfe6; }
+.search-bar { margin-bottom: 16px; }
+.search-results { max-height: 60vh; overflow-y: auto; }
+.search-empty { text-align: center; padding: 40px 20px; color: #909399; }
+.search-item {
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #fafbfc;
+  border-radius: 8px;
+  border-left: 3px solid #67C23A;
+}
+.search-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.search-time { font-size: 11px; color: #909399; }
+.search-content { font-size: 14px; line-height: 1.5; color: #303133; }
+.search-content :deep(mark) { background: #fef3c0; color: #d97706; padding: 0 2px; border-radius: 2px; }
 .dash-btn {
   background: linear-gradient(135deg, #409EFF, #909399);
   color: #fff;

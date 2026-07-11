@@ -26,6 +26,10 @@ export const imApi = {
   history: (sessionId, limit = 50) =>
     http.get(`/api/im/session/${sessionId}/messages`, { params: { limit } }),
 
+  /** 消息搜索 (跨当前会话) */
+  searchMessages: (sessionId, keyword, limit = 50) =>
+    http.get(`/api/im/session/${sessionId}/search`, { params: { keyword, limit } }),
+
   // 消息操作
   recallMessage:  (messageId) => http.post(`/api/im/session/message/${messageId}/recall`),
   readMessage:    (messageId) => http.post(`/api/im/session/message/${messageId}/read`),

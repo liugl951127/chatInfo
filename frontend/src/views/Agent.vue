@@ -34,7 +34,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import { Menu, Document } from '@element-plus/icons-vue'
+import { Menu, Document, Goblet, ChatLineRound, Bell, User, Promotion } from '@element-plus/icons-vue'
 import { imApi } from '@/api/im'
 import { useUserStore } from '@/stores/user'
 import { StompClient } from '@/utils/ws-client'
@@ -78,6 +78,11 @@ const waitingCount = ref(0)
 const waitingList = ref([])
 const claimingId = ref(null)
 const unreadMap = ref({})
+
+/** 总未读数 (用于欢迎页统计) */
+const unreadTotal = computed(() =>
+  Object.values(unreadMap.value || {}).reduce((s, n) => s + (n || 0), 0)
+)
 const readMap = ref({})
 const recalledMap = ref({})
 const peerTyping = ref('')
@@ -476,22 +481,33 @@ onBeforeUnmount(() => {
 <template>
   <div class="agent-shell" :class="{ mobile: isMobile }">
     <!-- 顶栏 -->
-    <header class="topbar">
+    <header class="topbar no-record">
       <el-button v-if="isMobile" link class="menu-btn" @click="drawerVisible = true">
         <el-icon><Menu /></el-icon>
       </el-button>
-      <span class="title">坐席工作台</span>
-      <span class="status" :class="{ ok: connected, warn: !connected && !reconnecting, bad: reconnecting }">
+      <span class="title">
+        <span class="title-icon">🎧</span> 坐席工作台
+        <el-tag v-if="agentStatus === 'ONLINE'" type="success" size="small" class="status-tag">
+          <span class="status-dot"></span>在线
+        </el-tag>
+        <el-tag v-else-if="agentStatus === 'BUSY'" type="warning" size="small" class="status-tag">忙碌</el-tag>
+        <el-tag v-else-if="agentStatus === 'AWAY'" type="info" size="small" class="status-tag">离开</el-tag>
+        <el-tag v-else type="danger" size="small" class="status-tag">离线</el-tag>
+      </span>
+      <span class="conn-status" :class="{ ok: connected, warn: !connected && !reconnecting, bad: reconnecting }">
+        <span class="status-dot"></span>
         {{ connected ? '已连接' : (reconnecting ? '重连中…' : '未连接') }}
       </span>
       <div class="spacer" />
-      <el-select :model-value="agentStatus" size="small" style="width: 96px;" @change="onStatusChange">
+      <el-button size="small" round class="claim-btn" :disabled="!connected" @click="claimOne()">
+        <el-icon><Goblet /></el-icon>&nbsp;抢单 ({{ waitingList.length }})
+      </el-button>
+      <el-select :model-value="agentStatus" size="small" style="width: 90px;" @change="onStatusChange">
         <el-option label="在线" value="ONLINE" />
         <el-option label="离开" value="AWAY" />
         <el-option label="忙碌" value="BUSY" />
         <el-option label="离线" value="OFFLINE" />
       </el-select>
-      <el-button size="small" :disabled="!connected" @click="claimOne()">抢单</el-button>
       <el-button size="small" link @click="logout">退出</el-button>
     </header>
 
@@ -521,19 +537,67 @@ onBeforeUnmount(() => {
 
       <!-- 聊天区 -->
       <section class="chat-area">
-        <div v-if="!current" class="empty">
-          <el-empty v-if="waitingList.length === 0" description="等待客户接入中…" />
-          <div v-else class="waiting-panel">
-            <h4>进线客户 ({{ waitingList.length }})</h4>
-            <div v-for="s in waitingList" :key="s.id" class="waiting-item">
-              <div class="wi-info">
-                <span class="sno">{{ s.sessionNo }}</span>
-                <el-tag size="small" v-if="s.skillTag">{{ s.skillTag }}</el-tag>
-                <span class="wait-time">客户 #{{ s.customerId }}</span>
+        <div v-if="!current" class="agent-welcome">
+          <div class="welcome-bg">
+            <div class="welcome-blob welcome-blob-1"></div>
+            <div class="welcome-blob welcome-blob-2"></div>
+            <div class="welcome-blob welcome-blob-3"></div>
+          </div>
+
+          <!-- 无客户等候: 大欢迎页 + 统计 -->
+          <div v-if="waitingList.length === 0" class="welcome-card">
+            <div class="welcome-emoji">🎧</div>
+            <h2 class="welcome-title">欢迎回来, {{ userStore.nickname || '坐席' }}!</h2>
+            <p class="welcome-subtitle">当前无等候客户. 休息一下, 客户接入时会自动提示</p>
+            <div class="welcome-stats">
+              <div class="stat-item">
+                <div class="stat-value">{{ activeSessions.length }}</div>
+                <div class="stat-label">进行中</div>
               </div>
-              <el-button size="small" type="primary" :loading="claimingId === s.id" @click="claimOne(s.id)">接起</el-button>
+              <div class="stat-divider"></div>
+              <div class="stat-item">
+                <div class="stat-value">{{ waitingList.length }}</div>
+                <div class="stat-label">等候中</div>
+              </div>
+              <div class="stat-divider"></div>
+              <div class="stat-item">
+                <div class="stat-value" :class="{ pulse: unreadTotal > 0 }">{{ unreadTotal }}</div>
+                <div class="stat-label">未读消息</div>
+              </div>
             </div>
-            <p class="hint">点击「接起」手动接入该客户 (系统保证唯一坐席成功)</p>
+            <div class="welcome-tip">
+              <el-icon><Bell /></el-icon>
+              <span>系统将自动监听新进线, 你也可以点击右上角"抢单"主动接入</span>
+            </div>
+          </div>
+
+          <!-- 有客户等候: 列表 + 抢单 CTA -->
+          <div v-else class="waiting-panel">
+            <div class="waiting-header">
+              <h4><el-icon><ChatLineRound /></el-icon> 等候客户 ({{ waitingList.length }})</h4>
+              <el-tag type="warning" effect="dark" size="small">需尽快接入</el-tag>
+            </div>
+            <div class="waiting-list">
+              <div v-for="s in waitingList" :key="s.id" class="waiting-item">
+                <div class="wi-info">
+                  <span class="wi-avatar">{{ (s.skillTag || '通').charAt(0) }}</span>
+                  <div class="wi-meta">
+                    <div class="wi-line1">
+                      <span class="sno">{{ s.sessionNo }}</span>
+                      <el-tag size="small" v-if="s.skillTag">{{ s.skillTag }}</el-tag>
+                    </div>
+                    <div class="wi-line2">客户 #{{ s.customerId }} · 等待接入</div>
+                  </div>
+                </div>
+                <el-button size="small" type="primary" round :loading="claimingId === s.id" @click="claimOne(s.id)">
+                  接起
+                </el-button>
+              </div>
+            </div>
+            <p class="hint">
+              <el-icon><User /></el-icon>
+              点击「接起」手动接入客户 (系统保证唯一坐席成功)
+            </p>
           </div>
         </div>
         <template v-else>
@@ -660,6 +724,228 @@ main { flex: 1; display: flex; min-height: 0; }
 .badge { background: #f56c6c; color: #fff; font-size: 11px; padding: 0 6px; border-radius: 8px; margin-left: auto; }
 .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff; }
 .empty { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+/* ===== V3 坐席欢迎页 ===== */
+.agent-welcome {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow: hidden;
+  background: #fafbfc;
+}
+.welcome-bg {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.welcome-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+  animation: blob-float 14s ease-in-out infinite;
+}
+.welcome-blob-1 {
+  width: 320px; height: 320px;
+  background: linear-gradient(135deg, #409EFF, #909399);
+  top: -120px; left: -80px;
+}
+.welcome-blob-2 {
+  width: 280px; height: 280px;
+  background: linear-gradient(135deg, #67C23A, #E6A23C);
+  bottom: -100px; right: -80px;
+  animation-delay: -5s;
+}
+.welcome-blob-3 {
+  width: 200px; height: 200px;
+  background: linear-gradient(135deg, #F56C6C, #E6A23C);
+  top: 50%; left: 50%;
+  animation-delay: -9s;
+}
+@keyframes blob-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, -20px) scale(1.1); }
+}
+.welcome-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+  text-align: center;
+  max-width: 540px;
+  width: 100%;
+  animation: welcome-in 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes welcome-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.welcome-emoji {
+  font-size: 56px;
+  margin-bottom: 12px;
+  animation: emoji-bounce 1.5s ease-in-out infinite;
+  display: inline-block;
+}
+@keyframes emoji-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.welcome-title {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #303133, #409EFF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.welcome-subtitle {
+  margin: 0 0 24px;
+  color: #909399;
+  font-size: 14px;
+}
+.welcome-stats {
+  display: flex; align-items: center;
+  justify-content: space-around;
+  padding: 20px 0;
+  margin: 20px 0;
+  border-top: 1px solid #ebeef5;
+  border-bottom: 1px solid #ebeef5;
+}
+.stat-item { flex: 1; text-align: center; }
+.stat-value {
+  font-size: 28px; font-weight: 700;
+  color: #303133; line-height: 1.2;
+  font-feature-settings: "tnum";
+}
+.stat-value.pulse {
+  color: #F56C6C;
+  animation: stat-pulse 1.5s ease-in-out infinite;
+}
+@keyframes stat-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+.stat-label {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 4px;
+}
+.stat-divider {
+  width: 1px; height: 40px;
+  background: #ebeef5;
+}
+.welcome-tip {
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px;
+  font-size: 12px; color: #909399;
+  padding: 8px;
+  background: #f5f7fa;
+  border-radius: 8px;
+}
+
+/* 头部样式 */
+.title-icon {
+  margin-right: 4px;
+  filter: drop-shadow(0 2px 4px rgba(64, 158, 255, 0.3));
+}
+.status-tag {
+  margin-left: 8px;
+  font-weight: 600;
+}
+.conn-status {
+  display: inline-flex; align-items: center;
+  padding: 2px 10px;
+  font-size: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  margin-left: 8px;
+}
+.status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+  animation: status-pulse 2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+.claim-btn {
+  background: linear-gradient(135deg, #F56C6C, #E6A23C);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3);
+  transition: transform 0.2s;
+}
+.claim-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(245, 108, 108, 0.4);
+}
+.claim-btn:disabled {
+  background: #c0c4cc;
+  box-shadow: none;
+}
+
+/* 等候客户面板 (新样式) */
+.waiting-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.waiting-header h4 {
+  margin: 0;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 16px;
+}
+.waiting-list {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 12px;
+}
+.waiting-item {
+  position: relative;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+.waiting-item:hover {
+  border-color: #409EFF;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.1);
+  transform: translateY(-1px);
+}
+.wi-info { display: flex; align-items: center; gap: 12px; }
+.wi-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #409EFF, #67C23A);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 600;
+  flex-shrink: 0;
+}
+.wi-line1 {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 2px;
+}
+.wi-line2 {
+  font-size: 12px; color: #909399;
+}
+.hint {
+  display: flex; align-items: center; justify-content: center;
+  gap: 4px;
+  font-size: 12px; color: #909399;
+  padding: 8px;
+  margin: 0;
+}
 .waiting-panel { width: 100%; max-width: 480px; margin: 0 auto; padding: 0 16px; }
 .waiting-panel h4 { margin: 0 0 12px; color: #303133; font-size: 14px; text-align: left; }
 .waiting-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; margin-bottom: 8px; background: #fff; border: 1px solid #ebeef5; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: all 0.2s; }

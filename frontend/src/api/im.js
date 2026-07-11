@@ -1,3 +1,20 @@
+/**
+ * im.js - IM 即时通讯 API 客户端.
+ * 封装后端 cs-im 的所有 REST 端点, 前端统一通过此模块访问.
+ *
+ * 主要端点:
+ *   - 认证:    /api/auth/login, /me
+ *   - 会话:    /api/im/session/* (创建/列表/接单/评分/转接)
+ *   - 消息:    /api/im/message/* (历史/搜索/已读/撤回)
+ *   - 模板:    /api/im/canned/* (坐席快捷回复)
+ *   - 文件:    /api/im/file/* (上传/下载)
+ *   - 审计:    /api/im/audit/* (合规审计)
+ *
+ * 设计:
+ *   - 所有方法返 Axios Promise, 后端 ApiResponse 由 http 拦截器统一解包
+ *   - 业务错误抛 ApiError (code/message), 由 error-handler.js 统一处理
+ *   - 401 自动跳登录, 由 http 拦截器处理
+ */
 import http from './axios'
 
 export const imApi = {

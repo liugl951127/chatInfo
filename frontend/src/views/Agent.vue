@@ -296,6 +296,21 @@ async function loadHistory(sid) {
 }
 
 // ============ 接单 (防串线 CAS) ============
+/**
+ * 接单核心算法:
+ *   step 1: 参数防御 (Vue 3 @click 不传参会传 PointerEvent)
+ *   step 2: 设置 claimingId, 显示 loading
+ *   step 3: 调 imApi.claimSession (后端 CAS UPDATE)
+ *   step 4: 成功 → refresh + 选中会话
+ *   step 5: 失败 → 分类处理 (409 防串线 / 业务错误 / 未知错误)
+ *
+ * CAS 防串线 (后端):
+ *   SQL: UPDATE chat_session SET agent_id=X, status='ACTIVE'
+ *        WHERE id=? AND status='WAITING' AND agent_id IS NULL
+ *   多坐席同时抢同一会话只有 1 个 affected=1, 其余 409
+ *
+ * @param sessionId  指定接某会话 (传 null = 队列自动抢一)
+ */
 async function claimOne(sessionId = null) {
   // v4 fix: 防止 Vue 3 @click 不传参时把 PointerEvent 当 sessionId
   if (sessionId !== null && typeof sessionId !== 'number' && typeof sessionId !== 'string') {
@@ -303,6 +318,7 @@ async function claimOne(sessionId = null) {
   }
   claimingId.value = typeof sessionId === 'number' ? sessionId : null
   try {
+    // 后端 CAS: 同一时刻只有 1 个坐席能接起 WAITING 会话
     const s = sessionId != null
       ? await imApi.claimSession(sessionId)
       : await imApi.claimSession()
@@ -311,9 +327,16 @@ async function claimOne(sessionId = null) {
     await refreshSessions()
     select(s)
   } catch (e) {
-    if (e.code === 409) ElMessage.warning(e.message || '会话已被其他坐席接起, 请选择其他会话')
-    else if (e.message?.includes('暂无')) ElMessage.warning(e.message)
-    else ElMessage.error('接单失败: ' + (e?.message || '未知错误'))
+    // 错误码分类处理
+    if (e.code === 409) {
+      // 防串线: 别人先接了, 提示 + 刷新队列
+      ElMessage.warning(e.message || '会话已被其他坐席接起, 请选择其他会话')
+    } else if (e.message?.includes('暂无')) {
+      // 队列空
+      ElMessage.warning(e.message)
+    } else {
+      ElMessage.error('接单失败: ' + (e?.message || '未知错误'))
+    }
     await refreshWaiting()
   } finally {
     claimingId.value = null
@@ -321,6 +344,12 @@ async function claimOne(sessionId = null) {
 }
 
 // ============ 发送消息 ============
+/**
+ * 发送消息:
+ *   1) 优先 STOMP send → 实时双向
+ *   2) STOMP 不可用 → REST fallback → 仍然能发
+ *   3) 失败 → 提示 + 不清空草稿 (用户可重发)
+ */
 async function send() {
   if (!current.value || !draft.value.trim()) return
   const text = draft.value.trim()

@@ -1,3 +1,13 @@
+/**
+ * record.js - 录像 API 客户端.
+ * 封装后端 cs-im /api/im/record 端点.
+ *
+ * 能力:
+ *   - 创建录像会话: create
+ *   - 上传分片:    uploadChunk (后端 ffmpeg 合并)
+ *   - 完成录像:   complete
+ *   - 列表查询:   list
+ */
 import axios from 'axios'
 import http from './axios'
 import { useUserStore } from '@/stores/user'

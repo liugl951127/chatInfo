@@ -378,6 +378,14 @@ async function refreshSessionFromServer() {
 }
 
 // ============ 发送消息 ============
+/**
+ * 发送消息 (客户侧):
+ *   1) 校验: 草稿非空 + 有当前会话
+ *   2) 清空草稿 + draftDraft.clearDraft (localStorage)
+ *   3) 优先 STOMP send (实时双向)
+ *   4) STOMP 不可用 → REST fallback
+ *   5) 失败 → 提示 + 草稿保留 (用户可重发)
+ */
 async function send() {
   if (!session.value || !draft.value.trim()) return
   const text = draft.value.trim()

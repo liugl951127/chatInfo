@@ -44,6 +44,7 @@ public final class CommonConstants {
     public static final String CTX_NICKNAME   = "ctx.nickname";
 
     /** Redis key 前缀 */
+    public static final String REDIS_RATE_LIMIT_PREFIX   = "chat:ratelimit:";                  // 限流 key 前缀
     public static final String REDIS_SESSION_QUEUE   = "chat:queue:waiting";          // 等待分配的会话 (List<Long> sessionId)
     public static final String REDIS_AGENT_ONLINE    = "chat:agent:online";            // 在线坐席 set
     public static final String REDIS_AGENT_SESSION   = "chat:agent:session:";          // 坐席当前会话 hash agentId -> sessionId

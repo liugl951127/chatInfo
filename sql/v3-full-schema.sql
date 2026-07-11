@@ -501,3 +501,44 @@ SELECT 'cdp_tag count', COUNT(*) FROM cdp_tag
 UNION ALL
 SELECT 'prediction_rule count', COUNT(*) FROM prediction_rule;
 */
+
+-- ============================================================
+-- V3.1 性能优化 (2026-07-12)
+-- ============================================================
+
+-- 1) 复合索引: 高频查询 (我的会话 / 等候队列)
+ALTER TABLE chat_session
+  ADD INDEX idx_cust_status_updated (customer_id, status, updated_at),
+  ADD INDEX idx_agent_status_updated (agent_id, status, updated_at);
+
+-- 2) 复合索引: 消息按时间倒序分页
+ALTER TABLE chat_message
+  ADD INDEX idx_session_created_id (session_id, created_at, id);
+
+-- 3) 覆盖索引: 健康分按时间统计
+ALTER TABLE success_health_score_history
+  ADD INDEX idx_user_created_score (user_id, created_at, score);
+
+-- 4) 复合索引: cdp_event 按用户事件类型时间
+ALTER TABLE cdp_event
+  ADD INDEX idx_user_type_time (user_id, event_type, occurred_at);
+
+-- 5) 复合索引: prediction_event 按状态时间
+ALTER TABLE prediction_event
+  ADD INDEX idx_status_time_user (status, created_at, user_id);
+
+-- 6) 复合索引: community 按分类时间
+ALTER TABLE community_post
+  ADD INDEX idx_cat_status_time (category, status, created_at);
+
+-- 7) 全文索引: 消息内容搜索 (阶段 2 升级: 改用 ES)
+ALTER TABLE chat_message
+  ADD FULLTEXT INDEX ft_content (content);
+
+-- 8) 复合索引: 录像按用户时间
+ALTER TABLE chat_record
+  ADD INDEX idx_user_started (user_id, started_at);
+
+-- 9) 复合索引: 通话按主叫状态
+ALTER TABLE voice_call
+  ADD INDEX idx_caller_status_time (caller_id, status, created_at);

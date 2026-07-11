@@ -116,7 +116,7 @@ docs/
 | 维度 | 数据 |
 |------|------|
 | 后端微服务 | 11 (auth/im/cdp/community/prediction/customer-success/ai/video/voice/gateway + common) |
-| 后端端点 | 84 (74 业务 + 10 health) |
+| 后端端点 | 85 (84 业务 + 1 health) (74 业务 + 10 health) |
 | Java 代码 | 11,381 行 |
 | SQL 表 | 19 (单库, 跨模块命名) |
 | 前端页面 | 6 (Login/Customer/Agent/Community/Replay/RealtimeMonitor) |
@@ -178,3 +178,20 @@ docker-compose up -d
 - **维护**: V3 Team
 - **更新**: 2026-07-12
 - **支持**: support@example.com
+
+
+---
+
+## 🚀 V3.1 升级 (2026-07-12)
+
+| 维度 | 数量 |
+|------|------|
+| 性能优化 | 10 项 |
+| 功能完善 | 8 项 |
+| Bug 修复 | 6 项 |
+| 新增端点 | 8 个 |
+| SQL 索引 | + 9 复合 + 1 FULLTEXT |
+| 新增后端 Java 文件 | 9 个 |
+| 新增前端文件 | 4 个 |
+
+详见 [DEV-MANUAL.docx](DEV-MANUAL.docx) 附录 H, [OPERATION-MANUAL.docx](OPERATION-MANUAL.docx) 附录 E.

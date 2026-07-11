@@ -14,11 +14,16 @@ import java.util.*;                                                            /
 /**
  * HealthScoreService - 客户健康分计算 (客户成功核心指标).
  * ----------------------------------------------------------------------------
- * 健康分公式 (阶段 1 简化版):
- *   score = 0.3 * login_freq_score    // 30% 登录频率
- *         + 0.3 * feature_usage_score  // 30% 功能使用 (这里用活跃天数简化)
- *         + 0.2 * support_score        // 20% 工单数 (越少越高, 阶段 1 用固定 100)
- *         + 0.2 * csat_score           // 20% 满意度
+ * 健康分公式 (V3.1 强化版, 5 维度):
+ *   score = 0.25 * login_freq_score   // 25% 登录频率
+ *         + 0.20 * feature_usage_score // 20% 功能使用 (活跃天数近似)
+ *         + 0.15 * support_score       // 15% 工单数 (越少越高)
+ *         + 0.25 * csat_score          // 25% 满意度
+ *         + 0.15 * retention_score     // 15% 回访率 (7 天内再次咨询比例, 越低越好)
+ *
+ * V3.1 新增:
+ *   - retention (15%): 高回访率 = 客户问题未一次解决 = 健康分降低
+ *   - 5 维度比 4 维度更全面, 防止单一指标刷分
  *
  * 权重说明:
  *   - login (30%): 登录频率分, 越高表示客户越活跃
@@ -83,12 +88,24 @@ public class HealthScoreService {
      */
     @Transactional
     public HealthResult computeAndSave(Long userId, int loginScore, int usageScore, int csatScore) {
+        return computeAndSave(userId, loginScore, usageScore, csatScore, 80);
+    }
+
+    /**
+     * 健康分 5 维度版本 (V3.1 新增 retention).
+     */
+    @Transactional
+    public HealthResult computeAndSave(Long userId, int loginScore, int usageScore, int csatScore, int retentionScore) {
         // step 1: 固定 supportScore (阶段 1 简化)
         int supportScore = 80;                                                 // 默认无工单
 
-        // step 2: 加权求和 (保留精度后四舍五入)
+        // step 2: V3.1 加权求和 (5 维度)
         int total = (int) Math.round(
-            loginScore * 0.3 + usageScore * 0.3 + supportScore * 0.2 + csatScore * 0.2);
+            loginScore * 0.25
+            + usageScore * 0.20
+            + supportScore * 0.15
+            + csatScore * 0.25
+            + retentionScore * 0.15);
         // 防御: clamp 到 [0, 100]
         total = Math.max(0, Math.min(100, total));
 
@@ -99,12 +116,13 @@ public class HealthScoreService {
         else if (total >= 40) tier = "AT_RISK";                               // 风险
         else tier = "CHURNED";                                                // 已流失
 
-        // step 4: 4 维分量快照 (LinkedHashMap 保持顺序)
+        // step 4: 5 维分量快照 (LinkedHashMap 保持顺序, 包含 V3.1 retention)
         Map<String, Integer> components = new LinkedHashMap<>();
         components.put("login", loginScore);
         components.put("usage", usageScore);
         components.put("support", supportScore);
         components.put("csat", csatScore);
+        components.put("retention", retentionScore);
 
         // 写 history (含 components JSON 快照, 后续可重算)
         HealthScoreHistory h = new HealthScoreHistory();

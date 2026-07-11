@@ -81,10 +81,19 @@ public class SessionController {
         return sessionService.rate(sessionId, rating, comment);
     }
 
-    @Operation(summary = "我的会话列表")
+    @Operation(summary = "我的会话列表 (支持分页)")
     @GetMapping("/mine")
-    public ApiResponse<List<com.chat.im.dto.SessionView>> mine() {
-        return sessionService.mySessions();
+    public ApiResponse<List<com.chat.im.dto.SessionView>> mine(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        if (size > 100) size = 100;  // 限上限
+        return sessionService.mySessions(page, size);
+    }
+
+    @Operation(summary = "我的会话总数 (用于分页)")
+    @GetMapping("/mine/count")
+    public ApiResponse<Long> mineCount() {
+        return sessionService.mySessionsCount();
     }
 
     @Operation(summary = "坐席查看等待队列")

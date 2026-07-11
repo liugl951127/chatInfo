@@ -23,6 +23,7 @@ import { ref } from 'vue'
 import { CircleCheck, Refresh } from '@element-plus/icons-vue'
 import { usePwa } from '@/composables/usePwa'
 import GlobalLoading from '@/components/common/GlobalLoading.vue'
+import OfflineQueueIndicator from '@/components/chat/OfflineQueueIndicator.vue'
 
 const pwaOfflineReady = ref(false)
 const pwaUpdateAvailable = ref(false)

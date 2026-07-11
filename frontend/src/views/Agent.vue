@@ -607,7 +607,8 @@ onBeforeUnmount(() => {
         <el-icon><DataAnalysis /></el-icon>&nbsp;看板
       </el-button>
       <ThemeToggle />
-      <el-button link @click="logout">退出</el-button>
+      <el-button link @click="$router.push('/admin')" title="管理面板">⚙</el-button>
+        <el-button link @click="logout">退出</el-button>
     </header>
     <ConnectionBanner :online="true" :reconnecting="reconnecting" :stomp-connected="connected" />
 

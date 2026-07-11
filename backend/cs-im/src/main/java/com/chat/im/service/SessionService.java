@@ -2,7 +2,8 @@ package com.chat.im.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;       // MP Lambda 构造器 (类型安全, 字段引用)
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;              // MP 普通构造器 (支持 OR / 自定义 SQL)
-import com.chat.common.api.ApiResponse;                                        // 统一响应包装 {code, msg, data}
+import com.chat.common.api.ApiResponse;
+import com.chat.common.api.PageResponse;                                        // 统一响应包装 {code, msg, data}
 import com.chat.common.constant.CommonConstants;                               // 公共常量 (Redis key, role, session status)
 import com.chat.common.security.UserContext;
 import com.chat.im.dto.AgentStatsView;                                          // 坐席统计视图 DTO (阶段 2 真实数据)                                   // 当前用户 ThreadLocal (uid + role)
@@ -262,30 +263,42 @@ public class SessionService {
         Set<String> onlineIds = presenceService.onlineAgents();
         if (onlineIds == null || onlineIds.isEmpty()) return null;             // 无人在线直接返 null
 
-        // 2) 遍历候选 (顺序由 Redis ZSET 决定, 按 lastHeartbeat desc)
+        // 2) V3.1 优化: 负载均衡 — 优先选当前会话数最少的坐席
+        //    之前: 遍历 Redis ZSET 顺序, 第一个满足条件的被选中 (可能不均)
+        //    现在: 收集所有候选 + 当前会话数, 排序选最小 (更公平)
+        record Candidate(Long agentId, String skillTags, long activeCount) {}
+        List<Candidate> candidates = new ArrayList<>();
         for (String sid : onlineIds) {
             Long aid = Long.parseLong(sid);
-            // 检查坐席状态: ONLINE/AWAY 才可分配 (BUSY/OFFLINE 跳过)
             if (!agentStatusService.isAssignable(aid)) continue;
-            // 检查坐席是否已有 ACTIVE 会话 (避免一坐席多开)
-            Long existing = sessionMapper.selectCount(new LambdaQueryWrapper<ChatSession>()
+            Agent a = userMapper.selectById(aid);
+            if (a == null) continue;
+            // 已忙 (有 ACTIVE 会话) → 跳过
+            long active = sessionMapper.selectCount(new LambdaQueryWrapper<ChatSession>()
                     .eq(ChatSession::getAgentId, aid)
                     .eq(ChatSession::getStatus, CommonConstants.SESSION_ACTIVE));
-            if (existing != null && existing > 0) continue;                   // 已忙, 跳过
-
-            // 查坐席详情 (昵称/技能)
-            Agent agent = userMapper.selectById(aid);
-            if (agent == null) continue;                                       // 坐席已删除, 跳过
-            // 无技能要求 → 直接选; 有技能要求 → 匹配才选
-            if (skillTag == null || skillTag.isEmpty()) return aid;
-            if (agent.getSkillTags() != null) {
-                // skillTags 是 "tech,billing" 逗号分隔字符串, 转 Set 便于 contains
-                Set<String> skills = new HashSet<>(Arrays.asList(agent.getSkillTags().split(",")));
-                if (skills.contains(skillTag)) return aid;                     // 技能命中
-            }
+            if (active > 0) continue;
+            candidates.add(new Candidate(aid, a.getSkillTags(), active));
         }
-        // 3) 无可分配坐席
-        return null;
+        if (candidates.isEmpty()) return null;
+        // 排序: 1) 技能匹配优先 2) 当前会话数最少
+        candidates.sort((c1, c2) -> {
+            boolean m1 = matchesSkill(c1.skillTags(), skillTag);
+            boolean m2 = matchesSkill(c2.skillTags(), skillTag);
+            if (m1 != m2) return m1 ? -1 : 1;
+            return Long.compare(c1.activeCount(), c2.activeCount());
+        });
+        return candidates.get(0).agentId();
+    }
+
+    /**
+     * 检查技能匹配 (空技能要求 或 坐席含此技能 → true).
+     */
+    private boolean matchesSkill(String agentSkillTags, String required) {
+        if (required == null || required.isEmpty()) return true;
+        if (agentSkillTags == null) return false;
+        Set<String> set = new HashSet<>(Arrays.asList(agentSkillTags.split(",")));
+        return set.contains(required);
     }
 
     /**
@@ -532,29 +545,60 @@ public class SessionService {
      * @return ApiResponse 包装的 SessionView 列表
      *         - data: 最近的 50 条会话视图 (含对方在线状态)
      */
-    public ApiResponse<List<com.chat.im.dto.SessionView>> mySessions() {
+    /**
+     * 我的会话列表 (V3.1 分页版本).
+     * @param page 页码 (1-based, 默认 1)
+     * @param size 每页大小 (默认 20, 上限 100)
+     */
+    public ApiResponse<List<com.chat.im.dto.SessionView>> mySessions(int page, int size) {
         Long uid = UserContext.userId();
         String role = UserContext.role();
+        if (uid == null) return ApiResponse.fail(401, "未登录");
+        if (size < 1) size = 20;
+        if (size > 100) size = 100;  // 防御: 单次最多 100
+        int offset = (page - 1) * size;
+        // 按角色决定查询条件 + 状态过滤
         LambdaQueryWrapper<ChatSession> q = new LambdaQueryWrapper<>();
-        // 按角色决定查询条件
         if (CommonConstants.ROLE_AGENT.equalsIgnoreCase(role)) {
-            q.eq(ChatSession::getAgentId, uid);                              // 坐席: agent_id=uid
+            // 坐席: 自己的会话 (排除 WAITING 已被接走的, 但保留 ACTIVE+CLOSED 历史)
+            q.eq(ChatSession::getAgentId, uid)
+             .in(ChatSession::getStatus, CommonConstants.SESSION_ACTIVE, CommonConstants.SESSION_CLOSED);
         } else {
-            q.eq(ChatSession::getCustomerId, uid);                            // 客户: customer_id=uid
+            // 客户: 自己的会话
+            q.eq(ChatSession::getCustomerId, uid);
         }
-        q.orderByDesc(ChatSession::getUpdatedAt).last(true, "LIMIT 50");            // 最新 50 条
+        q.orderByDesc(ChatSession::getUpdatedAt)
+         .last(true, "LIMIT " + size + " OFFSET " + offset);
         List<ChatSession> sessions = sessionMapper.selectList(q);
-        // 转 DTO + 查对方在线状态
+        // 转 DTO + 查对方在线状态 (批量查询避免 N+1)
         List<com.chat.im.dto.SessionView> views = new java.util.ArrayList<>(sessions.size());
         for (ChatSession s : sessions) {
-            // 视角方: 客户看 agent, 坐席看 customer
             Long peerId = CommonConstants.ROLE_AGENT.equalsIgnoreCase(role)
                 ? s.getCustomerId()
                 : s.getAgentId();
             Boolean peerOnline = peerId == null ? null : presenceService.isOnline(peerId);
             views.add(com.chat.im.dto.SessionView.from(s, peerOnline));
         }
-        return ApiResponse.ok(views);
+        // 返回 PageResponse (V3.1 分页优化)
+        long total = sessionMapper.selectCount(q);
+        return ApiResponse.ok(com.chat.common.api.PageResponse.of(views, total, page, size));
+    }
+
+    /**
+     * 我的会话总数 (用于分页 UI).
+     */
+    public ApiResponse<Long> mySessionsCount() {
+        Long uid = UserContext.userId();
+        String role = UserContext.role();
+        if (uid == null) return ApiResponse.fail(401, "未登录");
+        LambdaQueryWrapper<ChatSession> q = new LambdaQueryWrapper<>();
+        if (CommonConstants.ROLE_AGENT.equalsIgnoreCase(role)) {
+            q.eq(ChatSession::getAgentId, uid);
+        } else {
+            q.eq(ChatSession::getCustomerId, uid);
+        }
+        Long cnt = (long) sessionMapper.selectCount(q);
+        return ApiResponse.ok(cnt);
     }
 
     /**

@@ -1723,5 +1723,108 @@
   </div>
 </div>
 
+
+<div class="section" id="v31-flow">
+  <h2>🚀 V3.1 新增流程 (性能 + 功能)</h2>
+
+  <div class="flow">
+    <h3>📊 慢查询自动监控流程</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>请求进入</strong><br>ApiPerformanceFilter 拦截</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>记录开始</strong><br>System.nanoTime() 计时</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>放行 chain</strong><br>业务 Controller 执行</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>计算耗时</strong><br>记录到 SlowQueryMetrics</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>Prometheus</strong><br>P50/P95/P99 自动聚合</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">6</div><div class="step-body"><strong>告警 (可选)</strong><br>> 1s 触发 P0_ResponseP99</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>📚 FAQ 自学习流程</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>客户提问</strong><br>ChatComposer 输入</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>AI 决策</strong><br>规则 → FAQ → 情感 → 兜底</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>无答案</strong><br>FaqEngine.search score < 0.15</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>记录候选</strong><br>AiServiceWrapper → FaqLearner.record</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>Redis ZSET</strong><br>ZINCRBY 计数 +1</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">6</div><div class="step-body"><strong>运营审核</strong><br>/admin → FaqCandidatePool</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>⚖ 智能分配 5 维度流程</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>客户进线</strong><br>create(skill, false)</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>候选池</strong><br>presenceService.onlineAgents()</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>过滤</strong><br>状态 ONLINE + 无 ACTIVE</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>排序</strong><br>技能匹配优先 + 活跃数最少</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>分配</strong><br>标 ACTIVE + 系统消息</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>📦 离线录像队列流程 (PWA)</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>录制中</strong><br>5s 一分片</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>网络异常</strong><br>fetch 失败</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>SW 拦截</strong><br>sw.js networkOrQueue</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>IndexedDB</strong><br>存 cs-offline/queue</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>恢复网络</strong><br>background sync 触发</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">6</div><div class="step-body"><strong>重传</strong><br>逐个重传, 成功后删除</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>🏥 健康分 5 维度计算流程 (V3.1)</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>输入</strong><br>userId + activeDays + avgCsat</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>5 维度分</strong><br>login + usage + support + csat + retention</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>加权</strong><br>25+20+15+25+15 = 100%</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>分级</strong><br>>=80 CHAMPION / >=60 HEALTHY</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>写 history</strong><br>含 components JSON 快照</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>🚦 Redis 滑动窗口限流流程</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>请求</strong><br>@RateLimit(key="login")</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>RateLimitRedis</strong><br>tryAcquire(key, 5, 60)</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>清理窗口外</strong><br>ZREMRANGEBYSCORE</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>当前计数</strong><br>ZCard</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>判断</strong><br>count >= 5 → 429</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">6</div><div class="step-body"><strong>通过</strong><br>ZADD + EXPIRE</div></div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

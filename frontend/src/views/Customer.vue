@@ -753,6 +753,7 @@ function onRecall(id) { recall(id) }
           <el-icon><Search /></el-icon>&nbsp;搜索
         </el-button>
         <ThemeToggle />
+        <el-button link @click="$router.push('/admin')" title="管理面板">⚙</el-button>
         <el-button link @click="logout">退出</el-button>
       </template>
     </header>

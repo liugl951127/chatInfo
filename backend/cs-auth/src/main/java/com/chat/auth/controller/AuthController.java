@@ -5,6 +5,7 @@ import com.chat.auth.service.AuthService;
 import com.chat.common.api.ApiResponse;
 import com.chat.common.dto.LoginDTO;
 import com.chat.common.dto.LoginVO;
+import com.chat.common.ratelimit.RateLimit;
 import com.chat.common.security.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,6 +41,7 @@ public class AuthController {
 
     @Operation(summary = "登录")
     @PostMapping("/login")
+    @RateLimit(key = "login", permits = 5, window = 60)
     public ApiResponse<LoginVO> login(@Valid @RequestBody LoginDTO dto) {
         return authService.login(dto);
     }

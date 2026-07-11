@@ -1,6 +1,7 @@
 package com.chat.success.service;
 
 import com.chat.common.api.ApiResponse;
+import com.chat.common.retry.Retryable;
 import com.chat.success.config.ImClientConfig;
 import com.chat.success.entity.HealthScoreHistory;
 import com.chat.success.mapper.HealthScoreMapper;
@@ -97,6 +98,8 @@ public class AgentStatsService {
      * <p>
      * 注: agentId == null 时, 尝试从 UserContext 拿, 拿不到用 0.
      */
+    @Retryable(maxAttempts = 3, delayMs = 300, backoff = 2.0,
+                retryFor = {Exception.class})
     public AgentStats getStats(Long agentId) {
         long aid = agentId == null ? 0L : agentId;
         try {

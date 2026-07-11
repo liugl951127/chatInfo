@@ -1,2 +1,1 @@
-com.chat.common.config.RedisConfig
-com.chat.common.config.WebMvcConfigSupport
+com.chat.common.desensitize.DesensitizeAutoConfiguration

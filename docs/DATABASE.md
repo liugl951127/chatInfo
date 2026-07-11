@@ -26,9 +26,9 @@
 | 14 | `community_reply` | cs_community | cs-community | id | community_post, user | 100k+ |
 | 15 | `prediction_rule` | cs_pred | cs-prediction | id | - | 50+ |
 | 16 | `prediction_event` | cs_pred | cs-prediction | id | prediction_rule, user | 1M+ |
-| 17 | `health_score_history` | cs_success | cs-customer-success | id | user | 100k+ |
+| 19 | `health_score_history` | cs_success | cs-customer-success | id | user | 100k+ |
 
-**总 17 张表, 分布在 5 个数据库 (cs_im / cs_cdp / cs_community / cs_pred / cs_success).**
+**总 19 张表, cs-auth / cs-im / cs-cdp / cs-community / cs-prediction / cs-customer-success / cs-video / cs-voice (8 个模块).**
 
 ---
 
@@ -338,7 +338,7 @@
 
 ## 🔧 cs_success (1 张)
 
-### 17. health_score_history (健康分历史)
+### 19. health_score_history (健康分历史)
 
 | 字段 | 类型 | 约束 | 默认 | 说明 |
 |------|------|------|------|------|
@@ -512,7 +512,7 @@ EXPLAIN SELECT * FROM chat_message WHERE session_id=100;
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| v3.0.0 | 2026-07-12 | 17 张表完整 (新增 cdp_*, community_*, prediction_*, health_score_history) |
+| v3.0.0 | 2026-07-12 | 19 张表完整 (新增 cdp_*, community_*, prediction_*, health_score_history) |
 | v2.5.0 | 2025-12 | 9 张表 (cs-im 全部) |
 | v2.0.0 | 2025-08 | + chat_record, chat_record_chunk (录像) |
 | v1.0.0 | 2025-01 | user + chat_session + chat_message 基础 |
@@ -523,7 +523,7 @@ EXPLAIN SELECT * FROM chat_message WHERE session_id=100;
 
 ## A. 客户端索引 (V6)
 
-为支持实时大屏 / AI 自研 / 限流 / 脱敏, 新增 5 张轻量级表 (5 个库, 已包含在原 17 张内).
+为支持实时大屏 / AI 自研 / 限流 / 脱敏, 新增 8 张 V3 新增 (8 个模块, 已包含在 19 张内).
 
 ### A.1 cdp_event 索引优化
 - 主键: id
@@ -541,7 +541,7 @@ EXPLAIN SELECT * FROM chat_message WHERE session_id=100;
 - 二级: (vip_level, updated_at) 用于 VIP 客户查询
 - 三级: (last_active_at) 用于流失客户识别 (30 天未活跃)
 
-## B. 17 张表速查表
+## B. 19 张表速查表
 
 | 库 | 表名 | 用途 | 行数级 |
 |---|------|------|--------|

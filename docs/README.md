@@ -14,7 +14,7 @@ docs/
 ├── OPERATION-MANUAL.docx     ← 操作手册 (46KB, 客户/坐席/运营/管理员)
 ├── ARCHITECTURE.html         ← 架构图 (96KB, SVG + 卡片)
 ├── FLOW.html                 ← 流程图 (124KB, 16 流程)
-├── DATABASE.md               ← 数据库表结构 (17 张表)
+├── DATABASE.md               ← 数据库表结构 (19 张表)
 ├── FEATURE-AUDIT.md          ← 功能完整性审计报告
 ├── UX-ENHANCEMENTS.md        ← V6 客户体验增强详情
 └── ops/                      ← 运维配置
@@ -33,7 +33,7 @@ docs/
 | **OPERATION-MANUAL.docx** | 客户/坐席/运营/管理员/SRE | 46 KB | 4 篇 + 4 附录 业务操作手册 |
 | **ARCHITECTURE.html** | 全员 / 客户演示 | 96 KB | 9 微服务架构 + 实时推送 + SLA + 企业能力 |
 | **FLOW.html** | 全员 | 124 KB | 16 流程图 (含 V3.0 新增) |
-| **DATABASE.md** | DBA / 开发者 | 18 KB | 17 张表完整结构 + 索引 + 数据流 |
+| **DATABASE.md** | DBA / 开发者 | 18 KB | 19 张表完整结构 + 索引 + 数据流 |
 | **FEATURE-AUDIT.md** | PM / 客户 | 6.5 KB | 40 项功能审计 (100% 完整) |
 | **UX-ENHANCEMENTS.md** | 开发者 / PM | 5 KB | V6 客户体验增强详情 |
 | **ops/** | SRE / 运维 | - | Prometheus + AlertManager + Grafana |
@@ -118,7 +118,7 @@ docs/
 | 后端微服务 | 11 (auth/im/cdp/community/prediction/customer-success/ai/video/voice/gateway + common) |
 | 后端端点 | 84 (74 业务 + 10 health) |
 | Java 代码 | 11,381 行 |
-| SQL 表 | 17 (分布在 5 个数据库) |
+| SQL 表 | 19 (单库, 跨模块命名) |
 | 前端页面 | 6 (Login/Customer/Agent/Community/Replay/RealtimeMonitor) |
 | 前端组件 | 12 |
 | 前端 composables | 17 (V6 新增 8) |

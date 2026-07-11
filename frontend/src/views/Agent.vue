@@ -59,6 +59,18 @@ function highlight(text, key) {
 }
 
 const showSearch = ref(false)
+const showHelp = ref(false)
+const { onKey: onKeybind } = useKeyboard()
+onKeybind('search', () => { showSearch.value = true })
+onKeybind('help', () => { showHelp.value = !showHelp.value })
+onKeybind('enter', () => {
+  const el = document.activeElement
+  if (el?.classList?.contains('el-textarea__inner') || el?.tagName === 'TEXTAREA') {
+    // 找到 composer 的 send 按钮, 触发 click
+    const btn = el?.closest('.composer')?.querySelector('.composer-send') || el?.closest('.chat-area')?.querySelector('.composer-send')
+    btn?.click()
+  }
+})
 const searchKey = ref('')
 const searchResults = ref([])
 const searchLoading = ref(false)
@@ -553,19 +565,25 @@ onBeforeUnmount(() => {
         <el-option label="忙碌" value="BUSY" />
         <el-option label="离线" value="OFFLINE" />
       </el-select>
-      <el-button size="small" round plain class="search-btn" @click="showSearch = true" v-if="current">
+      <el-button size="small" round plain class="search-btn" @click="showSearch = true" v-if="current" title="搜索消息 (Cmd/Ctrl+K)">
         <el-icon><Search /></el-icon>&nbsp;搜消息
       </el-button>
       <el-button size="small" round plain @click="$router.push('/monitor')" class="mon-btn">
         <el-icon><Monitor /></el-icon>&nbsp;监控
       </el-button>
+      <el-tooltip content="快捷键帮助 (Cmd/Ctrl+/)" placement="bottom">
+        <el-button size="small" link @click="showHelp = true">⌨</el-button>
+      </el-tooltip>
       <el-button size="small" round class="dash-btn" @click="showDashboard = true">
         <el-icon><DataAnalysis /></el-icon>&nbsp;看板
       </el-button>
-      <el-button size="small" link @click="logout">退出</el-button>
+      <ThemeToggle />
+      <el-button link @click="logout">退出</el-button>
     </header>
+    <ConnectionBanner :online="true" :reconnecting="reconnecting" :stomp-connected="connected" />
 
     <!-- 坐席数据看板 -->
+    <KeyboardHelpDialog v-model:visible="showHelp" />
     <el-dialog v-model="showDashboard" title="数据看板" width="900px" top="5vh">
       <AgentDashboard />
     </el-dialog>

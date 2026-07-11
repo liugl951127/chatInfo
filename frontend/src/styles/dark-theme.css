@@ -1,0 +1,56 @@
+/* 暗色主题 - 客户/坐席通用
+   触发: <html data-theme="dark">
+   设计: 高对比度 + 护眼
+*/
+[data-theme="dark"] {
+  --bg-primary: #0f172a;        /* 主背景: 深石板蓝 */
+  --bg-secondary: #1e293b;      /* 卡片背景 */
+  --bg-tertiary: #334155;       /* 输入框 */
+  --bg-elevated: #1e293b;       /* 浮层 */
+  --text-primary: #f1f5f9;      /* 主文字 */
+  --text-secondary: #cbd5e1;    /* 次文字 */
+  --text-tertiary: #94a3b8;     /* 弱文字 */
+  --text-placeholder: #64748b;  /* 占位符 */
+  --border-color: #334155;      /* 边框 */
+  --border-light: #475569;      /* 强边框 */
+  --accent: #60a5fa;            /* 主色 */
+  --accent-hover: #3b82f6;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --shadow: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+[data-theme="dark"] body { background: var(--bg-primary); color: var(--text-primary); }
+[data-theme="dark"] .customer-shell,
+[data-theme="dark"] .agent-shell { background: var(--bg-primary); }
+[data-theme="dark"] .topbar { background: var(--bg-secondary); border-bottom-color: var(--border-color); color: var(--text-primary); }
+[data-theme="dark"] .topbar .title { color: var(--text-primary); }
+[data-theme="dark"] .chat-area { background: var(--bg-primary); }
+[data-theme="dark"] .composer { background: var(--bg-secondary); border-top-color: var(--border-color); }
+[data-theme="dark"] .el-textarea__inner { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border-color); }
+[data-theme="dark"] .msg-bubble { background: var(--bg-secondary); color: var(--text-primary); }
+[data-theme="dark"] .msg-bubble.from-me { background: var(--accent); color: #fff; }
+[data-theme="dark"] .msg-bubble.from-peer { background: var(--bg-secondary); color: var(--text-primary); }
+[data-theme="dark"] .session-item { background: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary); }
+[data-theme="dark"] .session-item:hover { background: var(--bg-tertiary); }
+[data-theme="dark"] .session-item.active { background: rgba(96, 165, 250, 0.15); }
+[data-theme="dark"] .empty-state { color: var(--text-secondary); }
+[data-theme="dark"] .el-popover, .el-dialog { background: var(--bg-elevated); color: var(--text-primary); }
+[data-theme="dark"] .el-button { background: var(--bg-tertiary); border-color: var(--border-color); color: var(--text-primary); }
+[data-theme="dark"] .el-button:hover { background: var(--bg-elevated); }
+[data-theme="dark"] .el-button--primary { background: var(--accent); border-color: var(--accent); }
+[data-theme="dark"] .el-input__wrapper { background: var(--bg-tertiary); box-shadow: 0 0 0 1px var(--border-color) inset; }
+[data-theme="dark"] .el-textarea__inner { background: var(--bg-tertiary); }
+[data-theme="dark"] .ql-editor { background: var(--bg-secondary); color: var(--text-primary); }
+[data-theme="dark"] .skill-picker-dialog { background: var(--bg-elevated); }
+[data-theme="dark"] .waiting-panel { background: var(--bg-secondary); }
+[data-theme="dark"] .waiting-item { background: var(--bg-tertiary); border-color: var(--border-color); }
+[data-theme="dark"] .preview-image-mask { background: rgba(0,0,0,0.85); }
+
+/* 滚动条 */
+[data-theme="dark"] ::-webkit-scrollbar { width: 8px; height: 8px; }
+[data-theme="dark"] ::-webkit-scrollbar-track { background: var(--bg-primary); }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }

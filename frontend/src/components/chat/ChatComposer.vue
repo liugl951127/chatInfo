@@ -22,7 +22,7 @@
  *   - toolbar-extra                   额外工具按钮 (坐席可加模板按钮)
  *   - toolbar-bottom                  输入框下方的额外控件
  */
-import { ref } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { Picture, Microphone } from '@element-plus/icons-vue'
 import { useEmojiPicker, EMOJI_LIST } from '@/composables/useEmojiPicker'
 import SentimentIndicator from '@/components/chat/SentimentIndicator.vue'
@@ -39,6 +39,18 @@ const emit = defineEmits(['update:modelValue', 'send', 'typing', 'image-pick', '
 
 const { emojiOpen, insertEmoji } = useEmojiPicker()
 const fileInputRef = ref(null)
+const inputRef = ref(null)
+
+function focusInput() {
+  nextTick(() => inputRef.value?.focus?.())
+}
+
+onMounted(() => {
+  // 自动聚焦输入框 (移动端除外, 会弹键盘)
+  if (!('ontouchstart' in window)) focusInput()
+})
+
+defineExpose({ focus: focusInput })
 
 // 录音 hook — 上传完成后 emit 'voice-blob' 给父组件
 const { recording, uploadingAudio, recordSeconds, toggleRecording } = useRecorder({
@@ -58,7 +70,15 @@ function onInput(e) {
 }
 
 function onKeydown(e) {
+  // 1) Cmd/Ctrl+Enter 强制发送
   if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault()
+    emit('send')
+    return
+  }
+  // 2) Enter 发送 (Shift+Enter 换行), 排除 IME 组合中
+  if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.isComposing || e.keyCode === 229) return
     e.preventDefault()
     emit('send')
   }
@@ -98,6 +118,7 @@ function pickImage() {
 
     <div class="composer-input-wrap">
       <el-input
+        ref="inputRef"
         :model-value="modelValue"
         type="textarea"
         :rows="2"

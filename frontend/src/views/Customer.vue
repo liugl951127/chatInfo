@@ -27,7 +27,7 @@
  *   - /topic/typing/{sid}: 对方输入状态
  *   - /topic/sessions/new: (仅坐席) 不需订阅
  */
-import { ref, onMounted, onBeforeUnmount, nextTick } from "vue"
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue"
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Menu, Promotion, User, Phone, VideoCamera, Search } from '@element-plus/icons-vue'
@@ -43,6 +43,12 @@ import ChatComposer from '@/components/chat/ChatComposer.vue'
 import PhoneCallDialog from '@/components/voice/PhoneCallDialog.vue'
 import { useResponsive } from '@/composables/useResponsive'
 import { useProactiveFeed } from '@/composables/useProactiveFeed'
+import { useDraft } from '@/composables/useDraft'
+import { useKeyboard } from '@/composables/useKeyboard'
+import { useDragUpload } from '@/composables/useDragUpload'
+import DragUploadOverlay from '@/components/chat/DragUploadOverlay.vue'
+import ThemeToggle from '@/components/common/ThemeToggle.vue'
+import { showSuccess, showWarn, handleError } from '@/utils/error-handler'
 import FloatingActionButton from '@/components/fab/FloatingActionButton.vue'
 import QuickQuestions from '@/components/quick-actions/QuickQuestions.vue'
 import ProactiveFeed from '@/components/quick-actions/ProactiveFeed.vue'
@@ -181,6 +187,15 @@ const pendingProactiveText = ref('')
 // ============ 会话 + 消息状态 ============
 const session = ref(null)
 const messages = ref([])
+/**
+ * 草稿自动保存:
+ *   - 切换 session 时, 加载旧草稿
+ *   - 输入时, 防抖 500ms 写入 localStorage
+ *   - 发送成功后, 清空草稿
+ * 场景: 客户输入到一半切换会话 / 刷新页面, 内容不丢
+ */
+const draftSessionKey = computed(() => `customer-${session.value?.id || 'new'}`)
+const draftDraft = useDraft(draftSessionKey, () => draft.value)
 const draft = ref('')
 const connected = ref(false)
 const reconnecting = ref(false)
@@ -367,20 +382,43 @@ async function send() {
   if (!session.value || !draft.value.trim()) return
   const text = draft.value.trim()
   draft.value = ''
+  draftDraft.clearDraft()  // 草稿已发, 清空
   if (stomp && stomp.connected) {
     stomp.send(`/app/send/${session.value.id}`, { msgType: 'TEXT', content: text })
   } else {
     // STOMP 不可用时 REST fallback
-    await imApi.history(session.value.id, 1)  // noop, just to keep import used
     try {
       await fetch(`/api/im/session/${session.value.id}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${userStore.token}` },
         body: JSON.stringify({ msgType: 'TEXT', content: text }),
       })
-    } catch (e) { console.warn('rest send failed', e) }
+    } catch (e) { handleError(e, { customMessage: '发送失败, 请重试' }) }
   }
 }
+
+// ============ 拖拽上传 (文件/图片拖到聊天区) ============
+const chatAreaRef = ref(null)
+const { isDragging, bind: bindDrag, unbind: unbindDrag } = useDragUpload(chatAreaRef, (files) => {
+  // 复用 ChatComposer 的 onFiles 逻辑: 客户拖拽文件
+  files.forEach(f => showSuccess(`正在上传 ${f.name}...`))
+  // 简化: 派发到全局
+  document.dispatchEvent(new CustomEvent('cs:upload-files', { detail: files }))
+})
+
+// ============ 键盘快捷键 ============
+const { onKey: onKeybind } = useKeyboard()
+onKeybind('enter', () => {
+  // 焦点在输入框才发送
+  const el = document.activeElement
+  if (el?.classList?.contains('el-textarea__inner') || el?.tagName === 'TEXTAREA') {
+    send()
+  }
+})
+onKeybind('escape', () => {
+  // Esc 关闭弹窗 (drawer 等)
+  drawerVisible.value = false
+})
 
 function sendTyping(typing) {
   if (!stomp || !session.value) return
@@ -399,9 +437,10 @@ async function recall(messageId) {
     await imApi.recallMessage(messageId)
     recalledMap.value = { ...recalledMap.value, [messageId]: true }
     const m = messages.value.find((x) => x.id === messageId)
-    if (m) { m.recalled = true; m.msgType = 'RECALL'; m.content = '对方撤回了一条消息' }
+    if (m) { m.recalled = true; m.msgType = 'RECALL'; m.content = '你撤回了一条消息' }
+    showSuccess('已撤回')
   } catch (e) {
-    ElMessage.error(e.message || '撤回失败')
+    handleError(e, { customMessage: '撤回失败 (仅 2 分钟内可撤回)' })
   }
 }
 
@@ -662,6 +701,12 @@ onBeforeUnmount(() => {
   // v3: 不在这里 stop recorder, 让录像保持 active 状态以便续录
   if (stomp) stomp.disconnect()
   if (typingTimer) clearTimeout(typingTimer)
+  unbindDrag()
+})
+
+// 拖拽: 绑定到 chat-area
+onMounted(() => {
+  nextTick(() => bindDrag())
 })
 
 // 监听 session 切换, 重订阅 typing
@@ -699,6 +744,7 @@ function onRecall(id) { recall(id) }
         <el-button class="side-btn" round plain @click="showSearch = true">
           <el-icon><Search /></el-icon>&nbsp;搜索
         </el-button>
+        <ThemeToggle />
         <el-button link @click="logout">退出</el-button>
       </template>
     </header>
@@ -764,7 +810,8 @@ function onRecall(id) { recall(id) }
       </aside>
 
       <!-- 聊天主区 -->
-      <section class="chat-area">
+      <section ref="chatAreaRef" class="chat-area">
+        <DragUploadOverlay :active="isDragging" />
         <!-- V3: 主动推送流 (顶部粘性) -->
         <ProactiveFeed :feed="proactiveFeed" @dismiss="dismissProactive"
                        @action="onProactiveAction" />
@@ -850,12 +897,14 @@ function onRecall(id) { recall(id) }
 
     <!-- 智能电话 -->
     <PhoneCallDialog v-if="showPhone" v-model="showPhone" :callee-uid="0" callee-name="AI 客服" />
+    <KeyboardHelpDialog v-model:visible="showHelp" />
 
     <!-- 视频通话 (V3 渠道 4) -->
     <VideoCallDialog v-if="showVideo" v-model="showVideo" :session="session" :stomp="stomp" />
 
     <!-- V3: FAB 浮动操作按钮 (始终显示) -->
     <FloatingActionButton :unread-count="proactiveUnread" @action="onFabAction" />
+    <ConnectionBanner :online="navigatorOnline" :reconnecting="reconnecting" :stomp-connected="connected" />
 
     <!-- V3: 个人中心 360 抽屉 (含主动关怀历史) -->
     <el-drawer v-model="showProfile" title="个人中心" direction="rtl" size="90%" @open="onShowProfile(true)">

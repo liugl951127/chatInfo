@@ -19,6 +19,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+/**
+ * AuthService - 鉴权服务.
+ * ----------------------------------------------------------------------------
+ * 业务流程:
+ *   1) login:    校验用户名密码 (BCrypt) → 生成 JWT → 返回 LoginVO
+ *   2) register: 校验唯一性 → BCrypt 加密 → 写库 → 自动登录
+ *   3) me:       从 token 解析 userId → 查 user 表 → 返回用户信息
+ *
+ * 安全:
+ *   - 密码 BCrypt 10 轮加密, 不可逆
+ *   - JWT HS256, 24h TTL
+ *   - 登录限流: @RateLimit(key="login", permits=5, window=60)
+ */
 public class AuthService {
 
     private final UserMapper userMapper;

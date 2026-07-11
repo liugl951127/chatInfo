@@ -1,5 +1,6 @@
 <template>
   <router-view />
+  <GlobalLoading />
   <!-- PWA 离线 / 更新提示 -->
   <transition name="pwa-fade">
     <div v-if="pwaOfflineReady" class="pwa-toast">
@@ -21,6 +22,7 @@
 import { ref } from 'vue'
 import { CircleCheck, Refresh } from '@element-plus/icons-vue'
 import { usePwa } from '@/composables/usePwa'
+import GlobalLoading from '@/components/common/GlobalLoading.vue'
 
 const pwaOfflineReady = ref(false)
 const pwaUpdateAvailable = ref(false)

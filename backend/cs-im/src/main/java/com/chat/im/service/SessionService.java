@@ -77,6 +77,7 @@ import java.util.Set;                                                           
 @Slf4j                                                                          // 自动生成 log 字段
 @Service                                                                       // 注册为 Spring Bean (默认单例)
 @RequiredArgsConstructor                                                       // final 字段自动构造注入
+
 public class SessionService {
 
     /** chat_session 表 DAO (MyBatis-Plus BaseMapper 提供 CRUD) */

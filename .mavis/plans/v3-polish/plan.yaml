@@ -1,0 +1,251 @@
+version: 1
+plan:
+  name: 'V3 代码注释 + 独立运行 + 真实数据 + 文档'
+  max_concurrency: 4
+  max_consecutive_failures: 2
+  max_cycles: 5
+
+tasks:
+  # 任务 1: 关键代码 + 算法详细注释
+  - id: code-comments
+    title: 关键 Java 代码 + 算法详细注释
+    assigned_to: general
+    timeout_ms: 1800000
+    verified_by: code-reviewer
+    prompt: |
+      项目: /workspace/online-chat (V3 智能客服平台)
+
+      任务: 给关键 Java 文件加详细中文注释, 要求每一行代码都有注释, 每个入参对方法的影响和作用详细描述, 算法逻辑必须详细注释.
+
+      重点文件 (按优先级):
+      1. backend/cs-im/src/main/java/com/chat/im/service/SessionService.java
+         - claim() CAS 防串线算法
+         - transferToHuman() 状态机
+         - bootstrap() 启动恢复
+      2. backend/cs-ai/src/main/java/com/chat/ai/service/LocalAiService.java
+         - 情感分析算法 (Java 自研)
+         - 关键词提取 + 评分逻辑
+      3. backend/cs-cdp/src/main/java/com/chat/cdp/service/ProfileService.java
+         - 360 画像聚合
+         - 标签计算
+      4. backend/cs-community/src/main/java/com/chat/community/service/CommunityService.java
+         - acceptReply 接受答案
+         - 帖子 + 回复双层结构
+      5. backend/cs-prediction/src/main/java/com/chat/prediction/service/PredictionService.java
+         - 规则引擎 evaluate
+         - 事件触发 + 历史
+      6. backend/cs-customer-success/src/main/java/com/chat/success/service/HealthScoreService.java
+         - 健康分计算公式
+         - 活跃天数 + CSAT 权重
+      7. backend/cs-im/src/main/java/com/chat/im/service/MessageService.java
+         - handleIncoming 消息处理
+         - 系统消息 + 转人工
+      8. backend/cs-im/src/main/java/com/chat/im/service/RecordService.java
+         - 录像分片存储
+         - 合并播放
+
+      注释规范:
+      - 类级 Javadoc: 完整描述职责 + 设计意图
+      - 方法级 Javadoc:
+        * @param 每个参数详细说明 (类型 + 业务含义 + 取值范围 + 对方法的影响)
+        * @return 返回值含义
+        * @throws 异常情况
+        * 算法: 用伪代码或步骤描述, 关键决策点
+      - 行内注释: 复杂逻辑每行都要有, 简单 get/set 可省
+      - 中文, 简洁, 准确
+
+      不要修改代码逻辑, 只加注释. 每个文件改完后用 mvn -B compile -pl cs-xxx -am 验证编译通过.
+
+      输出:
+      - 所有改过的文件路径列表
+      - 编译结果 (mvn -B install -DskipTests -pl <改过的模块> -am)
+      - 注释覆盖率估算 (关键算法 100%, 业务方法 90%, getter/setter 30%)
+    verify_prompt: |
+      独立检查 /workspace/online-chat 后端关键文件注释质量:
+      1. 重新跑 mvn -B install -DskipTests -pl cs-im,cs-ai,cs-cdp,cs-community,cs-prediction,cs-customer-success -am 看编译是否通过
+      2. 抽样 SessionService.java claim() 方法: 是否有详细算法注释 (CAS 防串线逻辑)?
+      3. 抽样 LocalAiService.java: 是否有情感分析算法详细描述?
+      4. 抽样 HealthScoreService.java: 健康分公式是否说明?
+      5. 是否有修改了代码逻辑? (用 git diff 看)
+      只允许加注释, 不允许改逻辑.
+
+  # 任务 2: 模块独立运行 (Dockerfile + docker-compose)
+  - id: standalone-run
+    title: 模块独立运行配置 (Dockerfile + docker-compose)
+    assigned_to: general
+    timeout_ms: 1500000
+    verified_by: code-reviewer
+    prompt: |
+      项目: /workspace/online-chat
+
+      任务: 给每个微服务加 Dockerfile, 加 docker-compose.yml, 让每个模块可以独立运行.
+
+      后端 9 个微服务 (backend/ 目录, cs-common 是公共库不需要独立运行):
+      1. cs-auth (登录认证, 8081)
+      2. cs-im (IM 核心, 8082)
+      3. cs-cdp (数字孪生, 8083)
+      4. cs-community (社区, 8084)
+      5. cs-prediction (预见式, 8085)
+      6. cs-customer-success (客户成功, 8086)
+      7. cs-ai (Java 自研 AI, 8087)
+      8. cs-video (视频, 8088)
+      9. cs-voice (智能电话, 8089)
+
+      每个 cs-xxx 服务都要:
+      1. backend/cs-xxx/Dockerfile (多阶段构建: maven:3.8 + eclipse-temurin:17-jre)
+      2. backend/cs-xxx/src/main/resources/application-standalone.yml (独立运行配置, 默认端口)
+
+      前端:
+      1. frontend/Dockerfile (node:18-alpine build + nginx 静态服务)
+      2. frontend/nginx.conf (SPA 配置 + 反代 /api/ 到后端)
+
+      根目录:
+      1. docker-compose.yml (含所有服务 + redis + mariadb + frontend)
+      2. .env.example (环境变量模板)
+      3. DOCKER-README.md (启动指南)
+
+      关键要求:
+      - docker-compose 一键启动全栈
+      - 每个服务都能独立 docker run 启动 (不依赖其他)
+      - standalone profile 用 H2 内存数据库或 mock 数据, 不依赖 mariadb/redis 时也能起
+      - 加 healthcheck
+      - 端口映射清晰
+
+      完成后:
+      1. 跑 mvn -B install -DskipTests 验证后端能编译
+      2. cd /workspace/online-chat && docker-compose config 验证 compose 语法
+      3. 写 DOCKER-README.md
+
+      输出:
+      - 9 个 Dockerfile (cs-xxx, 不含 cs-common)
+      - 9 个 application-standalone.yml
+      - 1 个 frontend/Dockerfile
+      - 1 个 frontend/nginx.conf
+      - 1 个 docker-compose.yml
+      - 1 个 .env.example
+      - 1 个 DOCKER-README.md
+    verify_prompt: |
+      独立检查 /workspace/online-chat:
+      1. 数 9 个 cs-xxx 都有 Dockerfile (backend/cs-*/Dockerfile), cs-common 不需要
+      2. 跑 mvn -B install -DskipTests 看后端能编译
+      3. 跑 docker-compose -f /workspace/online-chat/docker-compose.yml config 验证语法 (如果没装 docker 用 yaml lint)
+      4. 抽查 application-standalone.yml 是否有 H2 或 mock 配置
+      5. 检查 docker-compose.yml 是否含 mariadb + redis + 9 个 cs 服务 + frontend
+
+  # 任务 3: 真实数据接入 (替代 mock)
+  - id: real-data
+    title: 真实动态数据接入 (替换 mock 数据)
+    assigned_to: general
+    timeout_ms: 1500000
+    verified_by: code-reviewer
+    prompt: |
+      项目: /workspace/online-chat
+
+      任务: 把系统中的假数据 (mock) 用真实动态数据实现. 重点是 AgentStatsService.getStats() 当前的 Random mock 改成真实查 chat_session + chat_message 表.
+
+      依赖的表 (在 cs-im 库):
+      - chat_session (id, user_id, agent_id, status, rating, created_at, updated_at)
+      - chat_message (id, session_id, from_uid, to_uid, from_role, created_at)
+
+      实现方案:
+      1. 在 cs-im SessionController 新增 GET /api/im/stats/agent/{agentId} 端点
+         返回 AgentStatsView (含 todaySessions, avgResponse, avgCsat, last7Days, skills)
+      2. cs-im SessionService 新增 computeAgentStats(agentId) 方法
+         - todaySessions: 查 chat_session where date(created_at)=today and agent_id=?
+         - todayAvgResponseSec: 查 chat_message, 计算 agent 消息和客户消息时间差平均
+         - todayAvgCsat: 查 chat_session.rating where date(updated_at)=today
+         - last7Days: 7 天 group by date
+      3. cs-customer-success AgentStatsService 改用 RestTemplate 调 cs-im 统计接口
+         Fallback: cs-im 不可达时返回带 warning 的 mock 数据
+
+      完成后:
+      1. mvn -B install -DskipTests
+      2. 写真实数据接入说明到 docs/REAL-DATA.md
+      3. 写单元测试 SessionServiceTest.computeAgentStats
+
+      输出:
+      - cs-im SessionController 新增 /stats/agent/{id} 端点
+      - cs-im SessionService 新增 computeAgentStats 方法
+      - cs-customer-success AgentStatsService 改用 RestTemplate
+      - docs/REAL-DATA.md
+      - 至少 1 个测试类
+    verify_prompt: |
+      独立检查:
+      1. /workspace/online-chat/backend/cs-im/src/main/java/com/chat/im/controller/SessionController.java 是否有 GET /stats/agent/{id}?
+      2. AgentStatsService 是否真的调 RestTemplate, 不是 new Random?
+      3. mvn -B install -DskipTests 编译通过
+      4. 看 chat_session / chat_message 真实查表 (不是 mock)
+      5. 有没有 fallback 处理 cs-im 不可达?
+
+  # 任务 4: 文档 (架构图 + 流程图 + 开发手册)
+  - id: docs
+    title: 企业级架构图 + 代码流程图 + 开发手册
+    assigned_to: general
+    timeout_ms: 1500000
+    verified_by: code-reviewer
+    prompt: |
+      项目: /workspace/online-chat (V3 智能客服平台)
+
+      任务: 用 visual-page skill 做架构图 + 流程图, 用 docx skill 做开发手册.
+
+      1. 架构图 (HTML 自包含页面):
+         输出: docs/ARCHITECTURE.html
+         内容:
+         - 系统整体架构图 (9 微服务 + Redis + MariaDB + Frontend + 外部)
+         - V3 4 阶段流程图 (咨询前→咨询中→咨询后→复购期, 2 渠道 文本+音视频)
+         - 模块依赖图
+         - 数据流图 (用户→Frontend→Gateway→MicroService→DB)
+         - 部署架构图 (Docker Compose / K8s)
+         - 用 SVG / CSS 画, 颜色清新, 中英双语
+         - 用 visual-page skill (如果不可用, 用手写 HTML+CSS+SVG)
+
+      2. 代码流程图 (HTML 自包含页面):
+         输出: docs/FLOW.html
+         内容 (按核心业务):
+         - 用户登录流程 (Login.vue → authApi → Redis token)
+         - 创建会话流程 (createSession → 选 skill → push 队列)
+         - 坐席抢单流程 (claimOne → CAS UPDATE → 防串线)
+         - 消息发送流程 (STOMP send → MessageService → 广播)
+         - 转人工流程 (TransferToHumanEvent → 关 bot → 建人工)
+         - 视频/电话流程 (init → ICE → SDP → ASR → TTS)
+         - 健康分计算流程 (心跳 → ProfileService → 标签 → HealthScore)
+         - 预见式触发流程 (事件 → evaluate → 规则匹配 → 推送)
+         - 用 SVG / 流程图, 步骤清晰
+
+      3. 开发手册 (docx):
+         输出: docs/DEV-MANUAL.docx
+         内容 (15-30 页):
+         1. 项目概述 (V3 4 阶段 + 2 渠道)
+         2. 技术栈 (Spring Cloud + Nacos + Vue3 + Element Plus + MariaDB + Redis + WebRTC)
+         3. 模块清单 (9 个后端 + 5 个前端页面)
+         4. 目录结构
+         5. 启动指南 (开发模式 / Docker 模式)
+         6. API 文档 (按模块列出 65 端点)
+         7. 数据库表 (12 张表)
+         8. 关键算法 (CAS 防串线 / 健康分 / 情感分析 / 标签计算)
+         9. 前后端交互 (WebSocket STOMP / REST)
+         10. PWA / 离线支持
+         11. 录屏 / 文件上传
+         12. 测试账号
+         13. 部署上线
+         14. 常见问题
+         15. 版本历史
+         用 docx skill, 配表格 / 颜色 / 大纲
+
+      完成后:
+      - 三个文件都在 /workspace/online-chat/docs/ 下
+      - 验证可访问 (打开 HTML)
+      - docx 能用 Word / WPS 打开
+
+      输出文件:
+      - docs/ARCHITECTURE.html
+      - docs/FLOW.html
+      - docs/DEV-MANUAL.docx
+    verify_prompt: |
+      独立检查 /workspace/online-chat/docs/:
+      1. 三个文件存在: ARCHITECTURE.html, FLOW.html, DEV-MANUAL.docx
+      2. HTML 包含 SVG 架构图 (检查 <svg> 标签)
+      3. HTML 用 visual-page 风格 (内嵌 CSS, 自包含)
+      4. docx 大小 > 50KB (确保内容充实)
+      5. 文档包含 9 微服务 + V3 4 阶段 + 2 渠道关键术语
+      6. 流程图覆盖 8 个核心流程 (登录/会话/抢单/消息/转人工/视频/健康分/预见式)

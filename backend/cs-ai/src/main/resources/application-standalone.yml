@@ -1,0 +1,84 @@
+# =============================================================================
+# cs-ai standalone profile - 独立运行配置
+# -----------------------------------------------------------------------------
+# - 默认端口: 8087
+# - 数据库:   H2 内存库 (mem=ai)
+# - 缓存:     关闭 Redis 自动装配
+# - 鉴权:     cs-common WebMvcConfigSupport 装配 JwtAuthInterceptor,
+#             须显式给出 chat.jwt.secret
+# =============================================================================
+
+server:
+  port: 8087
+
+spring:
+  application:
+    name: cs-ai
+  profiles:
+    active: standalone
+
+  # ---------- 数据源: H2 内存 ----------
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:ai;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password: ""
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: false
+
+  sql:
+    init:
+      mode: never
+
+  # ---------- Redis: 关闭自动装配, 不连 6379 ----------
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  jackson:
+    time-zone: Asia/Shanghai
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+# ---------- MyBatis-Plus ----------
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+
+# ---------- 业务配置 ----------
+chat:
+  jwt:
+    secret: STANDALONE_cs-ai_secret_2026_32B_change-me
+    ttl-ms: 86400000
+  m3:
+    adapter-url: http://localhost:8084
+    default-model: local-ai
+
+logging:
+  level:
+    root: INFO
+    com.chat: INFO
+    com.chat.ai: DEBUG
+    com.chat.common.ai: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

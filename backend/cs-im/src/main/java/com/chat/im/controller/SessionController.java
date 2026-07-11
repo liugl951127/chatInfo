@@ -155,4 +155,40 @@ public class SessionController {
     public ApiResponse<Map<String, String>> getAgentStatus() {
         return ApiResponse.ok(Map.of("status", agentStatusService.getStatus(UserContext.userId())));
     }
+
+    /**
+     * 坐席真实统计 (供 cs-customer-success 调用).
+     * ----------------------------------------------------------------------------
+     * 端点: GET /api/im/stats/agent/{agentId}
+     * <p>
+     * 鉴权: 内部接口, 需 ADMIN 或该坐席本人 (AGENT 自己看自己).
+     * <p>
+     * 数据源: chat_session + chat_message 实时聚合 (AgentStatsView).
+     * <p>
+     * 指标:
+     *   - todaySessions       当日会话数
+     *   - todayAvgResponseSec 当日平均响应时长 (秒)
+     *   - todayAvgCsat        当日平均 CSAT
+     *   - monthSessions       当月会话数
+     *   - monthAvgCsat        当月平均 CSAT
+     *   - activeDays          近 30 天有活动天数
+     *   - last7Days           7 天趋势 (老->新)
+     *   - skills              能力评分 (按 skill_tag 聚合)
+     * <p>
+     * 错误码:
+     *   - 401: 未登录
+     *   - 403: 不是 ADMIN 也不是该坐席本人
+     */
+    @Operation(summary = "坐席统计 (cs-customer-success 内部调用)")
+    @GetMapping("/stats/agent/{agentId}")
+    public ApiResponse<com.chat.im.dto.AgentStatsView> agentStats(@PathVariable Long agentId) {
+        // 鉴权: ADMIN 通读; AGENT 仅能查自己
+        Long uid = UserContext.userId();
+        String role = UserContext.role();
+        if (uid == null) return ApiResponse.fail(401, "未登录");
+        if (!"ADMIN".equalsIgnoreCase(role) && !uid.equals(agentId)) {
+            return ApiResponse.fail(403, "无权查看其他坐席的统计");
+        }
+        return ApiResponse.ok(sessionService.computeAgentStats(agentId));
+    }
 }

@@ -1,0 +1,39 @@
+# =============================================================================
+# cs-ai 默认 application.yml - 生产 / docker-compose 全栈模式
+# 端口: 8087 (默认) / 8087 (standalone)
+# 备注: 独立运行时使用 application-standalone.yml (H2 + 无 Redis)
+# =============================================================================
+
+server:
+  port: 8087
+
+spring:
+  application:
+    name: cs-ai
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${SPRING_DATASOURCE_URL_HOST:localhost}:${SPRING_DATASOURCE_URL_PORT:3306}/${MARIADB_DATABASE:online_chat}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:951127}
+  jackson:
+    time-zone: Asia/Shanghai
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+
+chat:
+  jwt:
+    secret: ${JWT_SECRET:5vQeSUDLFEt81MPAmQetxV7i8fBJLTSjPCf15seKgOI7PTXou5vgcc4M01aoseUJ}
+    ttl-ms: ${JWT_TTL_MS:86400000}
+  m3:
+    adapter-url: ${M3_ADAPTER_URL:http://localhost:8084}
+    default-model: ${M3_DEFAULT_MODEL:minimax3}
+
+logging:
+  level:
+    com.chat: DEBUG
+    com.chat.common.ai: DEBUG

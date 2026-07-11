@@ -1,0 +1,88 @@
+# =============================================================================
+# cs-gateway application-docker.yml - docker-compose 专用配置
+# - 后端服务发现改用容器名 (cs-auth, cs-im, ...)
+# - Redis 指向 redis 容器
+# - 路由 uri 全部用容器名
+# =============================================================================
+
+server:
+  port: 9000
+
+spring:
+  application:
+    name: cs-gateway
+  profiles:
+    active: docker
+
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: false
+      routes:
+        # 鉴权
+        - id: cs-auth
+          uri: http://cs-auth:${PORT_AUTH:8081}
+          predicates:
+            - Path=/auth/**
+        # IM (REST + WebSocket)
+        - id: cs-im
+          uri: http://cs-im:${PORT_IM:8082}
+          predicates:
+            - Path=/api/im/**
+        - id: cs-im-ws
+          uri: http://cs-im:${PORT_IM:8082}
+          predicates:
+            - Path=/ws/**
+        # 数字孪生
+        - id: cs-cdp
+          uri: http://cs-cdp:${PORT_CDP:8083}
+          predicates:
+            - Path=/api/cdp/**
+        # 社区
+        - id: cs-community
+          uri: http://cs-community:${PORT_COMMUNITY:8084}
+          predicates:
+            - Path=/api/community/**
+        # 预见式
+        - id: cs-prediction
+          uri: http://cs-prediction:${PORT_PREDICTION:8085}
+          predicates:
+            - Path=/api/prediction/**
+        # 客户成功
+        - id: cs-customer-success
+          uri: http://cs-customer-success:${PORT_CUSTOMER_SUCCESS:8086}
+          predicates:
+            - Path=/api/success/**
+        # AI 自研
+        - id: cs-ai
+          uri: http://cs-ai:${PORT_AI:8087}
+          predicates:
+            - Path=/api/ai/**
+        # 视频
+        - id: cs-video
+          uri: http://cs-video:${PORT_VIDEO:8088}
+          predicates:
+            - Path=/api/video/**
+        # 智能电话
+        - id: cs-voice
+          uri: http://cs-voice:${PORT_VOICE:8089}
+          predicates:
+            - Path=/api/voice/**
+
+chat:
+  jwt:
+    secret: ${JWT_SECRET:5vQeSUDLFEt81MPAmQetxV7i8fBJLTSjPCf15seKgOI7PTXou5vgcc4M01aoseUJ}
+    ttl-ms: ${JWT_TTL_MS:86400000}
+
+logging:
+  level:
+    com.chat: INFO
+    org.springframework.cloud.gateway: INFO

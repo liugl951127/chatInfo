@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V3 智能客服平台 · 核心业务流程图 | Core Business Flow Diagrams</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --paper: #ffffff;
+    --ink: #14171e;
+    --ink-soft: #3a4256;
+    --ink-mute: #7c7a72;
+    --line: #e9e3d6;
+    --line-soft: #f0ebde;
+    --primary: #2f6f5e;
+    --primary-soft: rgba(47, 111, 94, 0.08);
+    --accent: #c97b3f;
+    --accent-soft: rgba(201, 123, 63, 0.10);
+    --rose: #b06367;
+    --sky: #5e7a9f;
+    --gold: #c9a23f;
+    --violet: #6b5e9f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Outfit', 'Noto Sans SC', -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(47, 111, 94, 0.04) 0%, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(201, 123, 63, 0.05) 0%, transparent 50%);
+  }
+  .serif { font-family: 'DM Serif Display', 'Noto Serif SC', serif; font-weight: 400; letter-spacing: -0.005em; }
+  .mono  { font-family: 'JetBrains Mono', 'Courier New', monospace; }
+  .cn    { font-family: 'Noto Sans SC', 'Outfit', sans-serif; }
+  .page  { max-width: 1200px; margin: 0 auto; padding: 64px 40px 80px; }
+
+  /* ===== HERO ===== */
+  .hero { padding: 32px 0 56px; border-bottom: 1px solid var(--line); margin-bottom: 56px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 6px 14px; border-radius: 999px;
+    background: var(--primary-soft); color: var(--primary);
+    font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+  h1 {
+    font-size: 52px; line-height: 1.05; margin-bottom: 18px; color: var(--ink);
+  }
+  h1 .en { display: block; font-size: 20px; color: var(--ink-soft); margin-top: 10px; font-style: italic; }
+  .lede {
+    font-size: 17px; color: var(--ink-soft); max-width: 740px; line-height: 1.65;
+    margin-bottom: 28px;
+  }
+  .lede strong { color: var(--primary); font-weight: 600; }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 28px;
+    padding-top: 20px; border-top: 1px dashed var(--line);
+  }
+  .meta-item { display: flex; flex-direction: column; gap: 4px; }
+  .meta-item .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); }
+  .meta-item .v { font-size: 15px; font-weight: 600; color: var(--ink); }
+
+  /* ===== FLOW INDEX GRID ===== */
+  .flow-index {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    margin-bottom: 56px;
+  }
+  .flow-tile {
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 18px;
+    text-decoration: none; color: inherit;
+    display: flex; flex-direction: column; gap: 4px;
+    transition: all 0.2s;
+  }
+  .flow-tile:hover { transform: translateY(-2px); border-color: var(--primary); box-shadow: 0 6px 16px rgba(0,0,0,0.05); }
+  .flow-tile .num {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); font-weight: 600;
+  }
+  .flow-tile .name { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .flow-tile .name-en { font-size: 11px; color: var(--ink-mute); }
+  .flow-tile .chip { align-self: flex-start; margin-top: 6px; }
+  @media (max-width: 880px) { .flow-index { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .flow-index { grid-template-columns: 1fr; } }
+
+  /* ===== FLOW CARD ===== */
+  section.flow { margin-bottom: 64px; scroll-margin-top: 32px; }
+  .flow-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  .flow-num {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--primary-soft); color: var(--primary);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 14px;
+    flex-shrink: 0;
+  }
+  .flow-head h2 {
+    font-size: 28px; line-height: 1.2; color: var(--ink);
+  }
+  .flow-head h2 .en {
+    display: block; font-size: 12px; color: var(--ink-mute);
+    font-family: 'Outfit', sans-serif; font-style: italic;
+    letter-spacing: 0.04em; margin-top: 4px; font-weight: 400;
+  }
+  .flow-desc { color: var(--ink-soft); font-size: 14px; max-width: 820px; margin: 12px 0 20px; }
+  .flow-desc strong { color: var(--primary); font-weight: 600; }
+
+  .diagram {
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 16px; padding: 28px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    overflow-x: auto;
+  }
+  .diag-caption {
+    font-size: 12px; color: var(--ink-mute);
+    margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line);
+    display: flex; flex-wrap: wrap; gap: 10px 18px;
+  }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+    background: var(--line-soft); color: var(--ink-soft);
+  }
+  .chip.primary { background: var(--primary-soft); color: var(--primary); }
+  .chip.accent { background: var(--accent-soft); color: var(--accent); }
+  .chip.rose { background: rgba(176, 99, 103, 0.10); color: var(--rose); }
+  .chip.sky { background: rgba(94, 122, 159, 0.10); color: var(--sky); }
+  .chip.gold { background: rgba(201, 162, 63, 0.10); color: var(--gold); }
+  .chip.violet { background: rgba(107, 94, 159, 0.10); color: var(--violet); }
+
+  /* ===== SIDEBARS / NOTES ===== */
+  .flow-notes {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-top: 20px;
+  }
+  .note {
+    background: var(--primary-soft); border: 1px solid rgba(47, 111, 94, 0.15);
+    border-radius: 10px; padding: 12px 14px;
+    font-size: 12px; color: var(--ink-soft);
+  }
+  .note .nk { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--primary); font-weight: 700; margin-bottom: 4px; }
+  .note .nv { color: var(--ink); }
+  @media (max-width: 720px) { .flow-notes { grid-template-columns: 1fr; } }
+
+  /* ===== NAV ===== */
+  .nav {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(247, 245, 240, 0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 40px;
+    margin: -64px -40px 48px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px;
+  }
+  .nav .brand { font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .nav .brand .swatch { width: 10px; height: 10px; background: var(--primary); border-radius: 50%; }
+  .nav .links { display: flex; gap: 20px; }
+  .nav .links a { color: var(--ink-soft); text-decoration: none; transition: color 0.2s; font-size: 12px; }
+  .nav .links a:hover { color: var(--primary); }
+  @media (max-width: 720px) { .nav { padding: 12px 20px; margin: -32px -20px 32px; } .nav .links { display: none; } }
+
+  /* ===== FOOTER ===== */
+  footer {
+    margin-top: 80px; padding-top: 32px; border-top: 1px solid var(--line);
+    color: var(--ink-mute); font-size: 12px;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+  }
+  footer .links a { color: var(--ink-soft); text-decoration: none; margin-right: 16px; }
+  footer .links a:hover { color: var(--primary); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ===== NAV ===== -->
+  <nav class="nav">
+    <div class="brand"><span class="swatch"></span>online-chat · 核心流程</div>
+    <div class="links">
+      <a href="#f1">登录</a>
+      <a href="#f2">建会话</a>
+      <a href="#f3">抢单</a>
+      <a href="#f4">发消息</a>
+      <a href="#f5">转人工</a>
+      <a href="#f6">视频电话</a>
+      <a href="#f7">健康分</a>
+      <a href="#f8">预见式</a>
+    </div>
+  </nav>
+
+  <!-- ===== HERO ===== -->
+  <header class="hero">
+    <div class="eyebrow">
+      <span class="dot"></span>
+      <span>核心业务流程 · Core Business Flows · 2026 Q3</span>
+    </div>
+    <h1 class="serif">
+      8 大核心业务流程图
+      <span class="en">Eight Core Business Flows · From Login to Predictive Engagement</span>
+    </h1>
+    <p class="lede cn">
+      从 <strong>用户登录</strong> 到 <strong>预见式推送</strong>,覆盖 V3 平台 8 个最关键的业务链路。每个流程图标注了关键决策点 (◆ 黄色菱形) 、服务调用 (绿色矩形) 、数据存储 (棕色矩形) 、异常路径 (红色虚线) ,可作为<strong>代码评审 / 新人 onboarding / 故障排查</strong>的参考。
+    </p>
+    <div class="meta-row">
+      <div class="meta-item"><span class="k">Diagrams</span><span class="v">8 核心流程</span></div>
+      <div class="meta-item"><span class="k">Layer</span><span class="v cn">前端 / 网关 / 微服务 / DB</span></div>
+      <div class="meta-item"><span class="k">Format</span><span class="v">SVG 流程图</span></div>
+      <div class="meta-item"><span class="k">Version</span><span class="v">V3 · 2026-07</span></div>
+    </div>
+  </header>
+
+  <!-- ===== FLOW INDEX ===== -->
+  <div class="flow-index">
+    <a href="#f1" class="flow-tile">
+      <span class="num">F1</span>
+      <span class="name cn">用户登录</span>
+      <span class="name-en">Login.vue → authApi → JWT</span>
+      <span class="chip primary">基础</span>
+    </a>
+    <a href="#f2" class="flow-tile">
+      <span class="num">F2</span>
+      <span class="name cn">创建会话</span>
+      <span class="name-en">createSession → skill → queue</span>
+      <span class="chip primary">基础</span>
+    </a>
+    <a href="#f3" class="flow-tile">
+      <span class="num">F3</span>
+      <span class="name cn">坐席抢单</span>
+      <span class="name-en">claimOne → CAS → 防串线</span>
+      <span class="chip accent">并发</span>
+    </a>
+    <a href="#f4" class="flow-tile">
+      <span class="num">F4</span>
+      <span class="name cn">消息发送</span>
+      <span class="name-en">STOMP send → broadcast</span>
+      <span class="chip primary">实时</span>
+    </a>
+    <a href="#f5" class="flow-tile">
+      <span class="num">F5</span>
+      <span class="name cn">转人工</span>
+      <span class="name-en">TransferEvent → close bot</span>
+      <span class="chip gold">AI</span>
+    </a>
+    <a href="#f6" class="flow-tile">
+      <span class="num">F6</span>
+      <span class="name cn">视频 / 电话</span>
+      <span class="name-en">init → ICE → SDP → ASR/TTS</span>
+      <span class="chip rose">渠道</span>
+    </a>
+    <a href="#f7" class="flow-tile">
+      <span class="num">F7</span>
+      <span class="name cn">健康分计算</span>
+      <span class="name-en">heartbeat → tags → HealthScore</span>
+      <span class="chip gold">AI</span>
+    </a>
+    <a href="#f8" class="flow-tile">
+      <span class="num">F8</span>
+      <span class="name cn">预见式触发</span>
+      <span class="name-en">event → evaluate → push</span>
+      <span class="chip gold">AI</span>
+    </a>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- F1: 用户登录流程 -->
+  <!-- ============================================================== -->
+  <section class="flow" id="f1">
+    <div class="flow-head">
+      <span class="flow-num">F1</span>
+      <h2 class="serif">用户登录流程<span class="en">User Login · Login.vue → authApi → JWT → Pinia store</span></h2>
+    </div>
+    <p class="flow-desc cn">
+      客户/坐席在 <code class="mono">Login.vue</code> 提交用户名密码,经 axios 调 <code class="mono">/auth/login</code>。cs-auth 用 <strong>BCrypt</strong> 校验密码,签发 <strong>HS512 JWT (24h)</strong>,载荷含 uid/role/nickname。前端把 token 持久化到 <strong>Pinia + localStorage</strong>,后续 axios 拦截器自动注入 <code class="mono">Authorization: Bearer ...</code> 头。
+    </p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1140 720" style="width:100%; height:auto; display:block;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr-f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3a4256"/>
+          </marker>
+          <marker id="arr-err" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#b06367"/>
+          </marker>
+          <marker id="arr-yes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6f5e"/>
+          </marker>
+        </defs>
+
+        <!-- Swimlane labels -->
+        <rect x="20" y="20" width="280" height="680" rx="8" fill="rgba(94, 122, 159, 0.05)" stroke="#5e7a9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="160" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f" letter-spacing="2">前端 Frontend</text>
+        <rect x="320" y="20" width="260" height="680" rx="8" fill="rgba(201, 123, 63, 0.05)" stroke="#c97b3f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="450" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#c97b3f" letter-spacing="2">网关 Gateway</text>
+        <rect x="600" y="20" width="280" height="680" rx="8" fill="rgba(47, 111, 94, 0.05)" stroke="#2f6f5e" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="740" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#2f6f5e" letter-spacing="2">cs-auth 服务</text>
+        <rect x="900" y="20" width="220" height="680" rx="8" fill="rgba(176, 99, 103, 0.05)" stroke="#b06367" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="1010" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#b06367" letter-spacing="2">DB</text>
+
+        <!-- Start -->
+        <rect x="60" y="70" width="200" height="36" rx="18" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="160" y="93" text-anchor="middle" font-family="Outfit, sans-serif" font-size="12" font-weight="600" fill="#14171e">① 用户在 Login.vue 提交表单</text>
+
+        <!-- Step 2 -->
+        <rect x="60" y="130" width="200" height="40" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="160" y="148" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">② axios.post('/auth/login')</text>
+        <text x="160" y="162" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#7c7a72">{username, password}</text>
+
+        <line x1="160" y1="106" x2="160" y2="130" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f)"/>
+
+        <!-- Step 3: gateway auth filter -->
+        <rect x="350" y="130" width="200" height="40" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="450" y="148" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">③ AuthGlobalFilter</text>
+        <text x="450" y="162" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">白名单 → 直接 pass</text>
+
+        <line x1="260" y1="150" x2="350" y2="150" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f)"/>
+
+        <!-- Step 4: forward to auth -->
+        <rect x="640" y="130" width="200" height="40" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="740" y="148" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">④ AuthController.login</text>
+        <text x="740" y="162" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">参数校验 @Valid</text>
+
+        <line x1="550" y1="150" x2="640" y2="150" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f)"/>
+
+        <!-- Step 5: BCrypt verify -->
+        <rect x="640" y="200" width="200" height="40" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="740" y="218" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑤ UserMapper.findByName</text>
+        <text x="740" y="232" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">DB 查 user 表</text>
+
+        <line x1="740" y1="170" x2="740" y2="200" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f)"/>
+
+        <!-- DB -->
+        <rect x="940" y="200" width="140" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="1010" y="218" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">SELECT * FROM user</text>
+        <text x="1010" y="232" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">WHERE username=?</text>
+
+        <line x1="840" y1="220" x2="940" y2="220" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f)"/>
+
+        <!-- Decision: user found? -->
+        <polygon points="740,280 880,310 740,340 600,310" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="740" y="305" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">用户存在?</text>
+        <text x="740" y="320" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">user != null</text>
+
+        <line x1="740" y1="240" x2="740" y2="280" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f)"/>
+
+        <!-- No path: 401 -->
+        <line x1="600" y1="310" x2="200" y2="310" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-err)"/>
+        <text x="320" y="304" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#b06367">NO → 401 用户名错误</text>
+
+        <rect x="60" y="295" width="140" height="30" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="130" y="314" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="600" fill="#b06367">ElMessage.error</text>
+
+        <!-- Yes path: BCrypt verify -->
+        <line x1="740" y1="340" x2="740" y2="370" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-yes)"/>
+        <text x="755" y="358" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#2f6f5e">YES</text>
+
+        <rect x="640" y="370" width="200" height="40" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="740" y="388" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑥ BCrypt.matches</text>
+        <text x="740" y="402" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">rawPwd vs dbHash</text>
+
+        <!-- Decision: password ok? -->
+        <polygon points="740,445 880,475 740,505 600,475" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="740" y="473" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">密码匹配?</text>
+
+        <line x1="740" y1="410" x2="740" y2="445" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f)"/>
+
+        <!-- No path: 401 password wrong -->
+        <line x1="600" y1="475" x2="200" y2="475" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-err)"/>
+        <text x="320" y="469" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#b06367">NO → 401 密码错误</text>
+
+        <rect x="60" y="460" width="140" height="30" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="130" y="479" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="600" fill="#b06367">ElMessage.error</text>
+
+        <!-- Yes: JWT sign -->
+        <line x1="740" y1="505" x2="740" y2="535" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-yes)"/>
+        <text x="755" y="525" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#2f6f5e">YES</text>
+
+        <rect x="640" y="535" width="200" height="44" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="740" y="555" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑦ JwtUtil.sign(uid, role, nickname)</text>
+        <text x="740" y="570" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">HS512 · 24h TTL</text>
+
+        <!-- Build LoginVO + return -->
+        <rect x="640" y="600" width="200" height="44" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="740" y="620" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑧ ApiResponse.ok(LoginVO)</text>
+        <text x="740" y="635" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">{token, userId, role, nickname}</text>
+
+        <line x1="740" y1="579" x2="740" y2="600" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f)"/>
+
+        <!-- Return to gateway -->
+        <line x1="640" y1="622" x2="550" y2="622" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-yes)"/>
+        <line x1="450" y1="622" x2="260" y2="622" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-yes)"/>
+        <text x="430" y="615" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" font-weight="700" fill="#2f6f5e">200 OK + LoginVO</text>
+
+        <!-- Frontend: Pinia store -->
+        <rect x="60" y="610" width="200" height="34" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="160" y="631" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑨ userStore.set()</text>
+
+        <line x1="160" y1="538" x2="160" y2="610" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-yes)"/>
+
+        <!-- Router push -->
+        <rect x="60" y="660" width="200" height="32" rx="16" fill="#2f6f5e" stroke="#2f6f5e"/>
+        <text x="160" y="681" text-anchor="middle" font-family="Outfit, sans-serif" font-size="12" font-weight="700" fill="#fff">⑩ router.replace(/agent|customer)</text>
+
+        <line x1="160" y1="644" x2="160" y2="660" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-yes)"/>
+
+        <!-- Audit log side note -->
+        <line x1="640" y1="556" x2="600" y2="556" stroke="#7c7a72" stroke-width="1" stroke-dasharray="2 2" marker-end="url(#arr-f)"/>
+        <line x1="600" y1="556" x2="600" y2="690" stroke="#7c7a72" stroke-width="1" stroke-dasharray="2 2"/>
+        <line x1="600" y1="690" x2="940" y2="690" stroke="#7c7a72" stroke-width="1" stroke-dasharray="2 2" marker-end="url(#arr-f)"/>
+        <rect x="940" y="670" width="140" height="40" rx="6" fill="rgba(176, 99, 103, 0.05)" stroke="#b06367" stroke-width="1" stroke-dasharray="2 2"/>
+        <text x="1010" y="687" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" fill="#b06367">audit_log:</text>
+        <text x="1010" y="700" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#b06367">action=LOGIN</text>
+      </svg>
+      <div class="diag-caption">
+        <span class="chip primary">泳道说明: 前端 ↔ 网关 ↔ cs-auth ↔ MariaDB</span>
+        <span class="chip accent" style="margin-left:auto">◆ = 决策点</span>
+        <span class="chip rose" style="margin-left:auto">━━ = 错误路径</span>
+      </div>
+    </div>
+
+    <div class="flow-notes">
+      <div class="note">
+        <div class="nk cn">关键算法</div>
+        <div class="nv cn">BCrypt <code class="mono">matches(rawPwd, dbHash)</code> · 恒定时间比较防时序攻击</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">JWT Claims</div>
+        <div class="nv"><code class="mono">uid, role, nickname, exp=24h</code> · HS512 签名,密钥 64 字节随机</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">前端持久化</div>
+        <div class="nv cn">Pinia <code class="mono">useUserStore</code> → localStorage · 刷新不丢</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- F2: 创建会话流程 -->
+  <!-- ============================================================== -->
+  <section class="flow" id="f2">
+    <div class="flow-head">
+      <span class="flow-num">F2</span>
+      <h2 class="serif">创建会话流程<span class="en">Create Session · Customer → pickAgent → Redis queue → DB</span></h2>
+    </div>
+    <p class="flow-desc cn">
+      客户点击 <strong>FAB → 开始咨询</strong>,前端 <code class="mono">imApi.createSession(skill)</code> 调 <code class="mono">POST /api/im/session/create</code>。后端先查 <strong>Redis 在线坐席集</strong>,按 <strong>技能匹配 + 状态排除</strong> 选最优坐席,立即分配 (ACTIVE) 或进入等待队列 (WAITING) 并广播 <code class="mono">/topic/sessions/new</code>。整个流程 <strong>单次 DB 写 + 一次 Redis 写</strong>,平均耗时 < 30ms。
+    </p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1140 820" style="width:100%; height:auto; display:block;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr-f2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3a4256"/>
+          </marker>
+          <marker id="arr-f2-yes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6f5e"/>
+          </marker>
+        </defs>
+
+        <rect x="20" y="20" width="280" height="780" rx="8" fill="rgba(94, 122, 159, 0.05)" stroke="#5e7a9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="160" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f" letter-spacing="2">前端 Customer.vue</text>
+        <rect x="320" y="20" width="280" height="780" rx="8" fill="rgba(201, 123, 63, 0.05)" stroke="#c97b3f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="460" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#c97b3f" letter-spacing="2">cs-im :9002</text>
+        <rect x="620" y="20" width="260" height="780" rx="8" fill="rgba(47, 111, 94, 0.05)" stroke="#2f6f5e" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="750" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#2f6f5e" letter-spacing="2">Redis</text>
+        <rect x="900" y="20" width="220" height="780" rx="8" fill="rgba(176, 99, 103, 0.05)" stroke="#b06367" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="1010" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#b06367" letter-spacing="2">MariaDB</text>
+
+        <!-- Step 1: click -->
+        <rect x="60" y="70" width="200" height="36" rx="18" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="160" y="93" text-anchor="middle" font-family="Outfit, sans-serif" font-size="12" font-weight="600" fill="#14171e">① 客户点击「开始咨询」</text>
+
+        <!-- Step 2: select skill -->
+        <rect x="60" y="130" width="200" height="44" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="160" y="148" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">② QuickQuestions 选择 skill</text>
+        <text x="160" y="163" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">billing / refund / tech</text>
+
+        <line x1="160" y1="106" x2="160" y2="130" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+
+        <!-- Step 3: API call -->
+        <rect x="60" y="195" width="200" height="40" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="160" y="213" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">③ imApi.createSession(skill)</text>
+        <text x="160" y="227" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#7c7a72">POST /api/im/session/create</text>
+
+        <line x1="160" y1="174" x2="160" y2="195" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+
+        <!-- Step 4: forward to cs-im -->
+        <rect x="350" y="195" width="220" height="40" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="460" y="213" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">④ SessionController.create()</text>
+        <text x="460" y="227" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">注入 @RequestParam skill</text>
+
+        <line x1="260" y1="215" x2="350" y2="215" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+
+        <!-- Step 5: pick agent -->
+        <rect x="350" y="260" width="220" height="44" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="460" y="280" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑤ PresenceService.pickAgent</text>
+        <text x="460" y="295" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">skill_tags LIKE 匹配</text>
+
+        <line x1="460" y1="235" x2="460" y2="260" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+
+        <!-- Redis: agent online set -->
+        <rect x="650" y="260" width="200" height="44" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="750" y="280" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">SMEMBERS chat:agent:online</text>
+        <text x="750" y="295" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">过滤 ONLINE / 排除 BUSY</text>
+
+        <line x1="570" y1="280" x2="650" y2="280" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+        <line x1="750" y1="304" x2="750" y2="330" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f2)"/>
+
+        <!-- Decision: agent available? -->
+        <polygon points="460,360 600,395 460,430 320,395" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="460" y="390" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">在线坐席 ≥ 1?</text>
+        <text x="460" y="405" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">且技能匹配</text>
+
+        <line x1="460" y1="304" x2="460" y2="360" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+
+        <!-- NO path: WAITING queue -->
+        <line x1="320" y1="395" x2="220" y2="395" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <line x1="220" y1="395" x2="220" y2="540" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="270" y="390" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#b06367">NO</text>
+
+        <rect x="100" y="540" width="240" height="50" rx="6" fill="rgba(176, 99, 103, 0.05)" stroke="#b06367" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="220" y="558" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#b06367">⑦ LPUSH chat:queue:waiting</text>
+        <text x="220" y="573" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#b06367">status=WAITING · 广播 /topic/sessions/new</text>
+
+        <line x1="220" y1="590" x2="220" y2="630" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+        <rect x="60" y="630" width="240" height="44" rx="6" fill="rgba(176, 99, 103, 0.05)" stroke="#b06367" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="180" y="650" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#b06367">客户看到「正在为您匹配客服...」</text>
+        <text x="180" y="664" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#b06367">UI 等待动画 · 由坐席 F3 抢单唤醒</text>
+
+        <!-- YES path: insert session ACTIVE -->
+        <line x1="460" y1="430" x2="460" y2="465" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-f2-yes)"/>
+        <text x="475" y="450" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#2f6f5e">YES</text>
+
+        <rect x="350" y="465" width="220" height="44" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="460" y="485" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑥ DB INSERT chat_session</text>
+        <text x="460" y="500" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">status=ACTIVE · agentId=X</text>
+
+        <line x1="460" y1="509" x2="460" y2="540" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+        <line x1="570" y1="485" x2="940" y2="485" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f2)"/>
+        <rect x="940" y="465" width="140" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="1010" y="485" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">chat_session</text>
+        <text x="1010" y="498" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">INSERT</text>
+
+        <!-- Redis: maintain agent session mapping -->
+        <rect x="650" y="540" width="200" height="44" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="750" y="560" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">SET chat:agent:session:X</text>
+        <text x="750" y="575" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">= sessionId (供 isBusy 判断)</text>
+
+        <line x1="570" y1="565" x2="650" y2="565" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+
+        <!-- Send system message -->
+        <rect x="350" y="605" width="220" height="50" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="460" y="625" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑧ sendSystemMessage()</text>
+        <text x="460" y="640" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">「客服 XX 已为您服务 (skill)」</text>
+
+        <line x1="460" y1="584" x2="460" y2="605" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+
+        <!-- WsPushService push via pub/sub -->
+        <rect x="650" y="605" width="200" height="50" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="750" y="625" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">PUBLISH chat:ws:push:4</text>
+        <text x="750" y="640" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">ws:cross-instance Pub/Sub</text>
+
+        <line x1="570" y1="625" x2="650" y2="625" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f2)"/>
+
+        <!-- Customer receives -->
+        <rect x="60" y="700" width="240" height="44" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="180" y="720" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑨ /user/queue/messages 收到</text>
+        <text x="180" y="734" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">渲染系统消息 + 切换到会话页</text>
+
+        <line x1="750" y1="655" x2="750" y2="690" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <line x1="750" y1="690" x2="180" y2="690" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <line x1="180" y1="690" x2="180" y2="700" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-f2-yes)"/>
+
+        <line x1="460" y1="655" x2="460" y2="690" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <line x1="460" y1="690" x2="180" y2="690" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="320" y="684" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#3a4256">200 OK + ChatSessionVO</text>
+      </svg>
+      <div class="diag-caption">
+        <span class="chip primary">技能路由</span>
+        <span class="chip accent" style="margin-left:auto">坐席分配算法: skill_tags LIKE 匹配 → 排除 BUSY/AWAY → 取最少会话数</span>
+      </div>
+    </div>
+
+    <div class="flow-notes">
+      <div class="note">
+        <div class="nk cn">Redis Keys</div>
+        <div class="nv"><code class="mono">chat:agent:online</code> (Set) · <code class="mono">chat:agent:session:{id}</code> (String) · <code class="mono">chat:queue:waiting</code> (List)</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">响应时间</div>
+        <div class="nv cn">平均 25ms · 1 次 SQL INSERT + 2 次 Redis SET + 1 次 Pub/Sub PUBLISH</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">并发安全</div>
+        <div class="nv cn">原子 SETNX 维护 agent:session 映射,防止同坐席被分配到 2 个客户</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- F3: 坐席抢单流程 (CAS 防串线) -->
+  <!-- ============================================================== -->
+  <section class="flow" id="f3">
+    <div class="flow-head">
+      <span class="flow-num">F3</span>
+      <h2 class="serif">坐席抢单流程<span class="en">Agent Claim · CAS Atomic Update · Cross-line Prevention</span></h2>
+    </div>
+    <p class="flow-desc cn">
+      多个坐席同时抢同一会话时,采用 <strong>数据库 CAS (Compare-And-Swap)</strong>:<code class="mono">UPDATE chat_session SET agent_id=X, status='ACTIVE' WHERE session_no=? AND (agent_id IS NULL OR status='WAITING')</code>。影响行数 = 0 说明抢单失败,立即回滚 Redis 状态。<strong>关键防御</strong>:Redis 的 <code class="mono">chat:agent:session:X</code> 同时只能映射一个 sessionId,杜绝「同坐席串线」BUG。
+    </p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1140 820" style="width:100%; height:auto; display:block;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr-f3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3a4256"/>
+          </marker>
+          <marker id="arr-f3-yes" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6f5e"/>
+          </marker>
+          <marker id="arr-f3-no" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#b06367"/>
+          </marker>
+        </defs>
+
+        <rect x="20" y="20" width="280" height="780" rx="8" fill="rgba(94, 122, 159, 0.05)" stroke="#5e7a9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="160" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f" letter-spacing="2">坐席 Agent.vue</text>
+        <rect x="320" y="20" width="280" height="780" rx="8" fill="rgba(201, 123, 63, 0.05)" stroke="#c97b3f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="460" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#c97b3f" letter-spacing="2">cs-im :9002</text>
+        <rect x="620" y="20" width="260" height="780" rx="8" fill="rgba(47, 111, 94, 0.05)" stroke="#2f6f5e" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="750" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#2f6f5e" letter-spacing="2">Redis</text>
+        <rect x="900" y="20" width="220" height="780" rx="8" fill="rgba(176, 99, 103, 0.05)" stroke="#b06367" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="1010" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#b06367" letter-spacing="2">MariaDB</text>
+
+        <!-- 1. click claim -->
+        <rect x="60" y="70" width="200" height="36" rx="18" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="160" y="93" text-anchor="middle" font-family="Outfit, sans-serif" font-size="12" font-weight="600" fill="#14171e">① 坐席点击「抢一单」</text>
+
+        <!-- 2. REST -->
+        <rect x="60" y="130" width="200" height="40" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="160" y="148" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">② imApi.claim()</text>
+        <text x="160" y="162" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#7c7a72">POST /api/im/session/claim</text>
+
+        <line x1="160" y1="106" x2="160" y2="130" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f3)"/>
+
+        <!-- 3. controller -->
+        <rect x="350" y="130" width="220" height="40" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="460" y="148" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">③ SessionController.claim()</text>
+        <text x="460" y="162" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">uid from UserContext</text>
+
+        <line x1="260" y1="150" x2="350" y2="150" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f3)"/>
+
+        <!-- 4. self check -->
+        <rect x="350" y="190" width="220" height="40" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="460" y="208" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">④ 检查坐席自己状态</text>
+        <text x="460" y="222" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">getStatus(uid) ∈ {ONLINE, BUSY}</text>
+
+        <line x1="460" y1="170" x2="460" y2="190" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f3)"/>
+
+        <!-- 5. LPOP queue -->
+        <rect x="650" y="190" width="200" height="44" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="750" y="210" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑤ LPOP chat:queue:waiting</text>
+        <text x="750" y="225" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">→ sessionId</text>
+
+        <line x1="570" y1="210" x2="650" y2="210" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f3)"/>
+
+        <!-- 6. CAS update -->
+        <rect x="350" y="270" width="220" height="60" rx="6" fill="rgba(47, 111, 94, 0.08)" stroke="#2f6f5e" stroke-width="2"/>
+        <text x="460" y="290" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑥ ⚡ CAS UPDATE</text>
+        <text x="460" y="306" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#2f6f5e">UPDATE chat_session</text>
+        <text x="460" y="318" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#2f6f5e">SET agent_id=? WHERE id=? AND status='WAITING'</text>
+
+        <line x1="460" y1="234" x2="460" y2="270" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f3)"/>
+        <line x1="570" y1="295" x2="940" y2="295" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f3)"/>
+        <rect x="940" y="275" width="140" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="1010" y="295" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">chat_session</text>
+        <text x="1010" y="308" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">CAS UPDATE</text>
+
+        <!-- 7. decision rows affected -->
+        <polygon points="460,360 600,395 460,430 320,395" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="460" y="390" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">影响行数 = 1?</text>
+        <text x="460" y="405" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">rowsAffected</text>
+
+        <line x1="460" y1="330" x2="460" y2="360" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f3)"/>
+
+        <!-- 7. NO path: rollback -->
+        <line x1="320" y1="395" x2="160" y2="395" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f3-no)"/>
+        <text x="240" y="389" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#b06367">NO → 别人抢走了</text>
+
+        <rect x="60" y="430" width="200" height="36" rx="6" fill="rgba(176, 99, 103, 0.06)" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="160" y="453" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="600" fill="#b06367">ElMessage.warning</text>
+
+        <!-- 7. YES path: SETNX Redis mapping -->
+        <line x1="460" y1="430" x2="460" y2="465" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-f3-yes)"/>
+        <text x="475" y="450" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#2f6f5e">YES · 防串线核心</text>
+
+        <rect x="650" y="465" width="200" height="60" rx="6" fill="rgba(47, 111, 94, 0.08)" stroke="#2f6f5e" stroke-width="2"/>
+        <text x="750" y="485" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑦ SETNX chat:agent:session:X</text>
+        <text x="750" y="500" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#2f6f5e">= sessionId</text>
+        <text x="750" y="514" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#2f6f5e">return OK / null</text>
+
+        <line x1="570" y1="495" x2="650" y2="495" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f3)"/>
+
+        <!-- 7b. SETNX fail means cross-line -->
+        <line x1="850" y1="495" x2="1000" y2="495" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f3-no)"/>
+        <text x="940" y="488" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" font-weight="700" fill="#b06367">SETNX 失败</text>
+        <text x="940" y="525" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" font-weight="700" fill="#b06367">→ 坐席已有会话, 回滚 DB</text>
+        <rect x="940" y="540" width="140" height="40" rx="6" fill="rgba(176, 99, 103, 0.06)" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="1010" y="558" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" font-weight="700" fill="#b06367">UPDATE 还原</text>
+        <text x="1010" y="572" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#b06367">agent_id=NULL</text>
+
+        <!-- 8. push to both sides -->
+        <rect x="350" y="555" width="220" height="44" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="460" y="575" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑧ 推送双方 /queue/messages</text>
+        <text x="460" y="590" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">系统消息 + 会话激活</text>
+
+        <line x1="460" y1="525" x2="460" y2="555" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f3)"/>
+
+        <!-- 9. agent receives -->
+        <rect x="60" y="630" width="200" height="40" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="160" y="650" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑨ 坐席收到 /queue/messages</text>
+        <text x="160" y="664" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">渲染会话 · 显示客户昵称</text>
+
+        <line x1="460" y1="599" x2="460" y2="630" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <line x1="460" y1="630" x2="260" y2="630" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <line x1="260" y1="630" x2="160" y2="630" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-f3-yes)"/>
+
+        <!-- Customer also receives (already in F2 covered) -->
+
+        <!-- Done -->
+        <rect x="350" y="700" width="220" height="50" rx="25" fill="#2f6f5e" stroke="#2f6f5e"/>
+        <text x="460" y="723" text-anchor="middle" font-family="Outfit, sans-serif" font-size="13" font-weight="700" fill="#fff">⑩ 抢单完成 · 进入 ACTIVE</text>
+        <text x="460" y="740" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" fill="#e9e3d6">双方可互发消息</text>
+
+        <line x1="460" y1="670" x2="460" y2="700" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-f3-yes)"/>
+      </svg>
+      <div class="diag-caption">
+        <span class="chip accent" style="margin-left:auto">⚡ 双重防护: DB CAS (rowsAffected) + Redis SETNX (原子性) · 缺一不可</span>
+      </div>
+    </div>
+
+    <div class="flow-notes">
+      <div class="note">
+        <div class="nk cn">CAS SQL</div>
+        <div class="nv"><code class="mono">UPDATE ... WHERE status='WAITING' AND agent_id IS NULL</code> · rows=0 即失败</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">Redis SETNX</div>
+        <div class="nv cn">同坐席只能 SETNX 成功一次 · 防止「双会话串线」历史 BUG</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">测试用例</div>
+        <div class="nv cn">5 坐席并发抢同一会话,只有 1 个 SETNX 成功,4 个立即看到「已被抢走」</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- F4: 消息发送流程 -->
+  <!-- ============================================================== -->
+  <section class="flow" id="f4">
+    <div class="flow-head">
+      <span class="flow-num">F4</span>
+      <h2 class="serif">消息发送流程<span class="en">Message Send · STOMP SEND → MessageService → Dual Push</span></h2>
+    </div>
+    <p class="flow-desc cn">
+      客户/坐席发消息:前端 <code class="mono">stomp.publish('/app/send/'+sessionId, dto)</code>,经 STOMP 帧到 <strong>cs-im</strong>。<code class="mono">MessageController.send</code> 调 <code class="mono">MessageService.handleIncoming</code>,DB 持久化 + <strong>三方推送</strong>:发送者 echo + 对端实时 (在线) 或离线存储 (不在线)。<strong>三层防线</strong>:在线推送 → 离线存储 → 重连补漏 (loadHistory)。
+    </p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1140 860" style="width:100%; height:auto; display:block;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr-f4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3a4256"/>
+          </marker>
+        </defs>
+
+        <rect x="20" y="20" width="220" height="820" rx="8" fill="rgba(94, 122, 159, 0.05)" stroke="#5e7a9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="130" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f" letter-spacing="2">Customer 端</text>
+        <rect x="260" y="20" width="220" height="820" rx="8" fill="rgba(94, 122, 159, 0.05)" stroke="#5e7a9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="370" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f" letter-spacing="2">Agent 端</text>
+        <rect x="500" y="20" width="280" height="820" rx="8" fill="rgba(201, 123, 63, 0.05)" stroke="#c97b3f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="640" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#c97b3f" letter-spacing="2">cs-im :9002</text>
+        <rect x="800" y="20" width="160" height="820" rx="8" fill="rgba(47, 111, 94, 0.05)" stroke="#2f6f5e" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="880" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#2f6f5e" letter-spacing="2">Redis</text>
+        <rect x="980" y="20" width="140" height="820" rx="8" fill="rgba(176, 99, 103, 0.05)" stroke="#b06367" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="1050" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#b06367" letter-spacing="2">MariaDB</text>
+
+        <!-- Customer types and sends -->
+        <rect x="40" y="70" width="180" height="36" rx="18" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="93" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="600" fill="#14171e">① 客户输入消息</text>
+
+        <rect x="40" y="130" width="180" height="40" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="148" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">② stomp.publish()</text>
+        <text x="130" y="163" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#7c7a72">/app/send/{sid}</text>
+
+        <line x1="130" y1="106" x2="130" y2="130" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f4)"/>
+
+        <!-- STOMP SEND to cs-im -->
+        <line x1="220" y1="150" x2="500" y2="150" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f4)"/>
+        <text x="360" y="144" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#3a4256">STOMP SEND frame</text>
+
+        <!-- MessageController -->
+        <rect x="510" y="130" width="260" height="40" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="640" y="148" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">③ MessageController.send()</text>
+        <text x="640" y="163" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">@MessageMapping</text>
+
+        <!-- MessageService -->
+        <rect x="510" y="195" width="260" height="44" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="640" y="215" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">④ MessageService.handleIncoming</text>
+        <text x="640" y="230" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">校验 session · 解析 dto</text>
+
+        <line x1="640" y1="170" x2="640" y2="195" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f4)"/>
+
+        <!-- DB INSERT -->
+        <rect x="510" y="265" width="260" height="44" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="640" y="285" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑤ chat_message INSERT</text>
+        <text x="640" y="300" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">msgId 自增 · session.lastMessage 同步</text>
+
+        <line x1="640" y1="239" x2="640" y2="265" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f4)"/>
+        <line x1="770" y1="287" x2="980" y2="287" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f4)"/>
+        <rect x="980" y="270" width="140" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="1050" y="290" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">chat_message</text>
+        <text x="1050" y="304" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">INSERT</text>
+
+        <!-- Echo back to sender -->
+        <rect x="510" y="335" width="260" height="44" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="640" y="355" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑥ 推发送者 echo</text>
+        <text x="640" y="370" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">convertAndSendToUser(senderId)</text>
+
+        <line x1="640" y1="309" x2="640" y2="335" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f4)"/>
+
+        <line x1="510" y1="357" x2="220" y2="357" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-f4)"/>
+        <text x="365" y="350" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#2f6f5e">/user/queue/messages echo</text>
+
+        <!-- Decision: peer online? -->
+        <polygon points="640,420 780,455 640,490 500,455" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="640" y="450" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">peer 在线?</text>
+        <text x="640" y="465" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">presenceService.isOnline</text>
+
+        <line x1="640" y1="379" x2="640" y2="420" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f4)"/>
+
+        <!-- NO path: offline store -->
+        <line x1="500" y1="455" x2="440" y2="455" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <line x1="440" y1="455" x2="440" y2="540" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="465" y="448" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#b06367">NO</text>
+
+        <rect x="810" y="540" width="140" height="60" rx="6" fill="rgba(176, 99, 103, 0.06)" stroke="#b06367" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="880" y="558" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#b06367">⑧ LPUSH</text>
+        <text x="880" y="572" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#b06367">chat:offline:</text>
+        <text x="880" y="585" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#b06367">msg:{peerId}</text>
+        <text x="880" y="597" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#b06367">LTRIM 200 · TTL 24h</text>
+
+        <line x1="640" y1="490" x2="640" y2="540" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <line x1="640" y1="540" x2="810" y2="570" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f4)"/>
+
+        <!-- YES path: real-time push -->
+        <line x1="640" y1="490" x2="640" y2="520" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-f4)"/>
+        <text x="655" y="508" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#2f6f5e">YES</text>
+
+        <rect x="510" y="520" width="260" height="44" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="640" y="540" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑦ WsPushService.pushToUser(peerId)</text>
+        <text x="640" y="555" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">Redis Pub/Sub chat:ws:push:{peerId}</text>
+
+        <!-- Increment unread counter -->
+        <rect x="810" y="460" width="140" height="44" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="880" y="480" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑨ HINCRBY unread</text>
+        <text x="880" y="495" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">chat:unread:{peerId} +1</text>
+
+        <line x1="770" y1="540" x2="810" y2="480" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f4)"/>
+
+        <!-- Push to agent (real-time) -->
+        <line x1="510" y1="542" x2="370" y2="542" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-f4)"/>
+        <text x="430" y="535" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#2f6f5e">/queue/messages</text>
+
+        <rect x="280" y="525" width="180" height="44" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="370" y="545" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑩ 坐席 appendMessage</text>
+        <text x="370" y="560" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">Vue 反应式 → DOM 更新</text>
+
+        <!-- Customer echo -->
+        <rect x="40" y="345" width="180" height="34" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="366" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="600" fill="#14171e">渲染自己发的消息</text>
+
+        <!-- Read receipt (optional) -->
+        <rect x="510" y="630" width="260" height="44" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="640" y="650" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑪ 坐席读后 → /read-all</text>
+        <text x="640" y="665" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">→ chat_message.receipt 落库</text>
+
+        <line x1="370" y1="569" x2="370" y2="630" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <line x1="370" y1="630" x2="510" y2="652" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f4)"/>
+
+        <!-- Reconnect fallback -->
+        <rect x="40" y="710" width="180" height="60" rx="6" fill="rgba(94, 122, 159, 0.06)" stroke="#5e7a9f" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="130" y="730" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#5e7a9f">⑫ 重连后 loadHistory</text>
+        <text x="130" y="745" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#5e7a9f">GET /api/im/session/{id}/messages</text>
+        <text x="130" y="759" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#5e7a9f">补漏 (3 层兜底)</text>
+
+        <rect x="280" y="710" width="180" height="60" rx="6" fill="rgba(94, 122, 159, 0.06)" stroke="#5e7a9f" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="370" y="730" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#5e7a9f">坐侧重连同样 load</text>
+        <text x="370" y="745" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#5e7a9f">refreshSessions + readAll</text>
+      </svg>
+      <div class="diag-caption">
+        <span class="chip primary">三层兜底</span>
+        <span class="chip accent" style="margin-left:auto">① 在线推送 ② 离线 Redis List ③ 重连 loadHistory (DB 权威)</span>
+      </div>
+    </div>
+
+    <div class="flow-notes">
+      <div class="note">
+        <div class="nk cn">路由解耦</div>
+        <div class="nv cn">SimpMessagingTemplate + Redis Pub/Sub 实现跨实例推送,坐席在哪台机都收得到</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">幂等订阅</div>
+        <div class="nv cn">ws-client.js 相同 (dest, cb) 只订阅一次,解决 v2.0.0 消息双发 BUG</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">消息 ID</div>
+        <div class="nv cn">msgId 自增,前端按 id 去重,offline list 与 history merge 不会重复</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- F5: 转人工流程 -->
+  <!-- ============================================================== -->
+  <section class="flow" id="f5">
+    <div class="flow-head">
+      <span class="flow-num">F5</span>
+      <h2 class="serif">转人工流程<span class="en">Bot → Human Handoff · TransferToHumanEvent · close bot session</span></h2>
+    </div>
+    <p class="flow-desc cn">
+      V3 核心场景之一:客户在与 <strong>AI Bot</strong> 对话中可一键申请「转人工」,或 AI 识别到客户情绪低落/反复无解时<strong>主动推荐</strong>转人工。后端关闭当前 bot 会话,自动选同技能空闲坐席,创建新 ACTIVE 会话,双方 STOMP 推送 TRANSFERRED 事件。
+    </p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1140 820" style="width:100%; height:auto; display:block;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr-f5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3a4256"/>
+          </marker>
+        </defs>
+
+        <rect x="20" y="20" width="240" height="780" rx="8" fill="rgba(94, 122, 159, 0.05)" stroke="#5e7a9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="140" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f" letter-spacing="2">Customer</text>
+        <rect x="280" y="20" width="280" height="780" rx="8" fill="rgba(201, 123, 63, 0.05)" stroke="#c97b3f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="420" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#c97b3f" letter-spacing="2">cs-im (Bot 调度)</text>
+        <rect x="580" y="20" width="240" height="780" rx="8" fill="rgba(107, 94, 159, 0.05)" stroke="#6b5e9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="700" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#6b5e9f" letter-spacing="2">M3 / AI 推理</text>
+        <rect x="840" y="20" width="280" height="780" rx="8" fill="rgba(94, 122, 159, 0.05)" stroke="#5e7a9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="980" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f" letter-spacing="2">cs-im (新坐席会话)</text>
+
+        <!-- Trigger options -->
+        <rect x="40" y="70" width="200" height="44" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="140" y="92" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">① 触发方式 (任一)</text>
+        <text x="140" y="106" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">点击按钮 · AI 识别</text>
+
+        <!-- Bot session active -->
+        <rect x="320" y="70" width="200" height="36" rx="18" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="420" y="93" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="600" fill="#14171e">② 当前 bot 会话 (is_bot=1)</text>
+
+        <line x1="240" y1="92" x2="320" y2="92" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f5)"/>
+
+        <!-- AI decides or button -->
+        <polygon points="420,140 560,170 420,200 280,170" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="420" y="165" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">触发来源</text>
+
+        <line x1="420" y1="106" x2="420" y2="140" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f5)"/>
+
+        <!-- User click -->
+        <rect x="40" y="240" width="200" height="44" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="140" y="262" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">客户点「转人工」</text>
+        <text x="140" y="276" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">requestTransfer(skill)</text>
+
+        <line x1="140" y1="200" x2="140" y2="240" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f5)"/>
+        <line x1="240" y1="170" x2="240" y2="260" stroke="#3a4256" stroke-width="1.5"/>
+        <line x1="240" y1="260" x2="280" y2="170" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="245" y="180" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#3a4256">USER</text>
+
+        <!-- AI evaluation -->
+        <rect x="600" y="140" width="200" height="60" rx="6" fill="#fff" stroke="#6b5e9f" stroke-width="1.5"/>
+        <text x="700" y="162" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">M3 推理</text>
+        <text x="700" y="178" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">情绪 ↓ · 重复问 3+ 次</text>
+        <text x="700" y="192" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">→ 主动建议转人工</text>
+
+        <line x1="560" y1="170" x2="600" y2="170" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f5)"/>
+        <line x1="700" y1="200" x2="700" y2="260" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <line x1="700" y1="260" x2="560" y2="200" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="630" y="222" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#6b5e9f">AI</text>
+
+        <!-- AI bot respond -->
+        <rect x="40" y="320" width="200" height="44" rx="6" fill="rgba(107, 94, 159, 0.06)" stroke="#6b5e9f" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="140" y="342" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#6b5e9f">Bot 推送: 「转人工吗?」</text>
+        <text x="140" y="356" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#6b5e9f">用户确认后继续</text>
+
+        <!-- Close bot session -->
+        <rect x="320" y="320" width="200" height="60" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="420" y="342" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">③ Close Bot 会话</text>
+        <text x="420" y="358" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#7c7a72">UPDATE chat_session</text>
+        <text x="420" y="372" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#7c7a72">SET status='CLOSED'</text>
+
+        <line x1="240" y1="262" x2="320" y2="350" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f5)"/>
+        <line x1="240" y1="342" x2="320" y2="350" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f5)"/>
+
+        <!-- Pick new agent -->
+        <rect x="320" y="410" width="200" height="60" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="420" y="432" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">④ pickAgent (skill)</text>
+        <text x="420" y="448" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">同技能优先 → 排除 BUSY</text>
+        <text x="420" y="462" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">→ 选定 agentId=X</text>
+
+        <line x1="420" y1="380" x2="420" y2="410" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f5)"/>
+
+        <!-- Create new active session -->
+        <rect x="860" y="410" width="240" height="60" rx="6" fill="rgba(47, 111, 94, 0.06)" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="980" y="432" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#2f6f5e">⑤ INSERT 新会话 ACTIVE</text>
+        <text x="980" y="448" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">is_bot=0 · skill=同</text>
+        <text x="980" y="462" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">transferred_from_bot=1</text>
+
+        <line x1="520" y1="440" x2="860" y2="440" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f5)"/>
+        <text x="690" y="433" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#3a4256">HTTP /api/im/session/create (内部)</text>
+
+        <!-- Send system message -->
+        <rect x="320" y="500" width="200" height="44" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="420" y="520" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑥ 推送 TRANSFERRED 事件</text>
+        <text x="420" y="535" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">type=TRANSFERRED · to agentId</text>
+
+        <line x1="420" y1="470" x2="420" y2="500" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f5)"/>
+
+        <!-- Customer receives TRANSFERRED -->
+        <rect x="40" y="500" width="200" height="44" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="140" y="520" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑦ 客户 UI 收到事件</text>
+        <text x="140" y="535" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">「客服 XX 正在接入」</text>
+
+        <line x1="320" y1="522" x2="240" y2="522" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-f5)"/>
+
+        <!-- New agent receives -->
+        <rect x="860" y="500" width="240" height="44" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="980" y="520" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑧ 坐席侧 /queue/messages</text>
+        <text x="980" y="535" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">「新客户从 Bot 转入」</text>
+
+        <line x1="520" y1="522" x2="860" y2="522" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-f5)"/>
+
+        <!-- Done -->
+        <rect x="420" y="640" width="280" height="50" rx="25" fill="#2f6f5e" stroke="#2f6f5e"/>
+        <text x="560" y="663" text-anchor="middle" font-family="Outfit, sans-serif" font-size="13" font-weight="700" fill="#fff">⑨ Bot → Human 转人工完成</text>
+        <text x="560" y="680" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" fill="#e9e3d6">上下文: Bot 历史消息自动带入</text>
+
+        <line x1="420" y1="544" x2="420" y2="640" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-f5)"/>
+        <line x1="980" y1="544" x2="980" y2="640" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <line x1="980" y1="640" x2="700" y2="640" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3"/>
+      </svg>
+      <div class="diag-caption">
+        <span class="chip gold" style="margin-left:auto">关键: Bot 会话 CLOSED 后创建新 ACTIVE 会话,保留聊天历史供坐席参考</span>
+      </div>
+    </div>
+
+    <div class="flow-notes">
+      <div class="note">
+        <div class="nk cn">AI 触发阈值</div>
+        <div class="nv cn">情绪分 &lt; 0.3 · 连续 3 次相同问题 · 5 分钟未解决</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">上下文保留</div>
+        <div class="nv cn">Bot 会话的 chat_message 不删,新会话中坐席可滚动看到完整历史</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">无坐席兜底</div>
+        <div class="nv cn">503 错误 → 退回 Bot 会话 + 通知「当前繁忙,请稍候」</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- F6: 视频/电话流程 -->
+  <!-- ============================================================== -->
+  <section class="flow" id="f6">
+    <div class="flow-head">
+      <span class="flow-num">F6</span>
+      <h2 class="serif">视频 / 电话流程<span class="en">Video & Voice · init → ICE → SDP → ASR → TTS</span></h2>
+    </div>
+    <p class="flow-desc cn">
+      V3 渠道层核心:视频走 <strong>WebRTC P2P</strong>(cs-video 信令服务器转发 SDP/ICE),电话走 <strong>sip.js + ASR/TTS + M3 决策</strong>。两者复用 cs-im 的会话 / 录制链路,信令通过 STOMP 复用现有 WebSocket 连接。
+    </p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1140 860" style="width:100%; height:auto; display:block;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr-f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3a4256"/>
+          </marker>
+        </defs>
+
+        <rect x="20" y="20" width="220" height="820" rx="8" fill="rgba(94, 122, 159, 0.05)" stroke="#5e7a9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="130" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f" letter-spacing="2">Customer 浏览器</text>
+        <rect x="260" y="20" width="220" height="820" rx="8" fill="rgba(176, 99, 103, 0.05)" stroke="#b06367" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="370" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#b06367" letter-spacing="2">cs-video / cs-voice</text>
+        <rect x="500" y="20" width="200" height="820" rx="8" fill="rgba(201, 123, 63, 0.05)" stroke="#c97b3f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="600" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#c97b3f" letter-spacing="2">TURN/STUN</text>
+        <rect x="720" y="20" width="200" height="820" rx="8" fill="rgba(47, 111, 94, 0.05)" stroke="#2f6f5e" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="820" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#2f6f5e" letter-spacing="2">ASR / TTS</text>
+        <rect x="940" y="20" width="180" height="820" rx="8" fill="rgba(107, 94, 159, 0.05)" stroke="#6b5e9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="1030" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#6b5e9f" letter-spacing="2">M3</text>
+
+        <!-- Step 1 -->
+        <rect x="40" y="70" width="180" height="36" rx="18" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="93" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="600" fill="#14171e">① 点击「视频/电话」</text>
+
+        <!-- 2 init API -->
+        <rect x="280" y="70" width="180" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="370" y="90" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">② /api/video/init</text>
+        <text x="370" y="104" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">建 video_session</text>
+
+        <line x1="220" y1="88" x2="280" y2="88" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+        <line x1="130" y1="106" x2="130" y2="160" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+
+        <!-- 3 get user media -->
+        <rect x="40" y="160" width="180" height="40" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="180" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">③ getUserMedia()</text>
+        <text x="130" y="194" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">摄像头 + 麦克风</text>
+
+        <!-- 4 create peer connection -->
+        <rect x="40" y="225" width="180" height="44" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="245" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">④ RTCPeerConnection</text>
+        <text x="130" y="259" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#7c7a72">new RTCPeerConnection</text>
+
+        <line x1="130" y1="200" x2="130" y2="225" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+
+        <!-- 5 ICE gathering -->
+        <rect x="40" y="290" width="180" height="44" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="310" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑤ ICE 候选收集</text>
+        <text x="130" y="324" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">stun:turn.example.com</text>
+
+        <line x1="130" y1="269" x2="130" y2="290" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+
+        <!-- TURN -->
+        <line x1="220" y1="312" x2="500" y2="312" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+        <line x1="500" y1="312" x2="500" y2="350" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+        <rect x="510" y="300" width="180" height="40" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="600" y="320" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">Coturn TURN</text>
+        <text x="600" y="334" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">中继 + NAT 穿透</text>
+        <rect x="510" y="350" width="180" height="40" rx="6" fill="#fff" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="600" y="370" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">返回 ICE candidates</text>
+        <text x="600" y="384" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">host/srflx/relay</text>
+
+        <!-- 6 SDP offer -->
+        <rect x="40" y="360" width="180" height="40" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="380" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑥ createOffer()</text>
+        <text x="130" y="394" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#7c7a72">SDP offer</text>
+
+        <!-- 7 send SDP via signaling -->
+        <rect x="280" y="425" width="180" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="370" y="445" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑦ Signal SDP/ICE</text>
+        <text x="370" y="459" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">STOMP /app/signal/{sid}</text>
+
+        <line x1="130" y1="400" x2="130" y2="440" stroke="#3a4256" stroke-width="1.5"/>
+        <line x1="130" y1="440" x2="280" y2="445" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+        <line x1="460" y1="445" x2="500" y2="445" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+        <line x1="680" y1="445" x2="130" y2="445" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <line x1="130" y1="445" x2="130" y2="480" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f6)"/>
+
+        <!-- 8 set remote + createAnswer -->
+        <rect x="40" y="480" width="180" height="50" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="500" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑧ setRemoteDesc</text>
+        <text x="130" y="514" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">+ createAnswer</text>
+        <text x="130" y="526" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">→ SDP answer</text>
+
+        <!-- 9 P2P connected -->
+        <rect x="40" y="555" width="180" height="44" rx="6" fill="rgba(47, 111, 94, 0.08)" stroke="#2f6f5e" stroke-width="2"/>
+        <text x="130" y="575" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#2f6f5e">⑨ P2P connected</text>
+        <text x="130" y="589" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#2f6f5e">MediaStream 双向</text>
+
+        <line x1="130" y1="530" x2="130" y2="555" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+
+        <!-- ⑩ Voice call ASR/TTS -->
+        <line x1="370" y1="599" x2="370" y2="650" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+        <rect x="280" y="650" width="180" height="44" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="370" y="670" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑩ 语音流 /api/voice/asr</text>
+        <text x="370" y="684" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">WebSocket 上行 PCM</text>
+
+        <line x1="460" y1="672" x2="720" y2="672" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+        <rect x="730" y="650" width="180" height="44" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="820" y="670" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑪ ASR → text</text>
+        <text x="820" y="684" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">阿里云 / 讯飞</text>
+
+        <line x1="910" y1="672" x2="940" y2="672" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f6)"/>
+        <rect x="950" y="650" width="160" height="44" rx="6" fill="#fff" stroke="#6b5e9f" stroke-width="1.5"/>
+        <text x="1030" y="670" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑫ M3 决策</text>
+        <text x="1030" y="684" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">function calling</text>
+
+        <!-- ⑬ TTS return -->
+        <line x1="940" y1="700" x2="820" y2="700" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f6)"/>
+        <rect x="730" y="720" width="180" height="44" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="820" y="740" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑬ TTS → 语音流</text>
+        <text x="820" y="754" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">M3 synthesize_speech</text>
+
+        <line x1="730" y1="742" x2="370" y2="742" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f6)"/>
+        <rect x="280" y="725" width="180" height="44" rx="6" fill="rgba(47, 111, 94, 0.08)" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="370" y="745" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#2f6f5e">⑭ 客户端播放</text>
+        <text x="370" y="759" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#2f6f5e">AudioContext 播放</text>
+
+        <line x1="280" y1="747" x2="130" y2="700" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f6)"/>
+      </svg>
+      <div class="diag-caption">
+        <span class="chip rose">视频路径: P2P 直连 (NAT 穿透用 coturn) · 信令走 cs-video STOMP</span>
+        <span class="chip gold" style="margin-left:auto">电话路径: ASR → M3 决策 → TTS · 全双工 PCM 流</span>
+      </div>
+    </div>
+
+    <div class="flow-notes">
+      <div class="note">
+        <div class="nk cn">WebRTC ICE</div>
+        <div class="nv cn">STUN 失败时走 TURN 中继,确保 95%+ 穿透率</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">录制</div>
+        <div class="nv cn">视频通话复用 RecordService,WebM 分片 + 结束 ffmpeg 合并 (阶段 3)</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">电话 M3</div>
+        <div class="nv cn">Function calling: 查订单/转人工/创建工单,通话中实时决策</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- F7: 健康分计算流程 -->
+  <!-- ============================================================== -->
+  <section class="flow" id="f7">
+    <div class="flow-head">
+      <span class="flow-num">F7</span>
+      <h2 class="serif">健康分计算流程<span class="en">Health Score · heartbeat → ProfileService → tags → score</span></h2>
+    </div>
+    <p class="flow-desc cn">
+      V3 阶段 3 核心能力:<code class="mono">cs-customer-success</code> 服务定时 (cron 1h) + 事件触发 (会话结束/订单完成) 双重驱动,聚合 <code class="mono">cs-cdp</code> 的 30+ 标签,按权重公式计算 0-100 分,落库 <code class="mono">health_score_history</code> 用于趋势分析。
+    </p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1140 720" style="width:100%; height:auto; display:block;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr-f7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3a4256"/>
+          </marker>
+        </defs>
+
+        <rect x="20" y="20" width="220" height="680" rx="8" fill="rgba(94, 122, 159, 0.05)" stroke="#5e7a9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="130" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f" letter-spacing="2">Trigger 触发</text>
+        <rect x="260" y="20" width="280" height="680" rx="8" fill="rgba(201, 162, 63, 0.05)" stroke="#c9a23f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="400" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#c9a23f" letter-spacing="2">cs-customer-success</text>
+        <rect x="560" y="20" width="280" height="680" rx="8" fill="rgba(47, 111, 94, 0.05)" stroke="#2f6f5e" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="700" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#2f6f5e" letter-spacing="2">cs-cdp</text>
+        <rect x="860" y="20" width="260" height="680" rx="8" fill="rgba(176, 99, 103, 0.05)" stroke="#b06367" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="990" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#b06367" letter-spacing="2">DB + AI</text>
+
+        <!-- 1. trigger sources -->
+        <rect x="40" y="70" width="180" height="36" rx="18" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="93" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="600" fill="#14171e">① 触发</text>
+
+        <rect x="40" y="130" width="180" height="36" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="151" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="600" fill="#14171e">⏰ Cron 1h 心跳</text>
+
+        <rect x="40" y="180" width="180" height="36" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="201" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="600" fill="#14171e">💬 会话关闭事件</text>
+
+        <rect x="40" y="230" width="180" height="36" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="251" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="600" fill="#14171e">🛒 订单完成</text>
+
+        <!-- 2. success controller receives -->
+        <rect x="280" y="70" width="240" height="40" rx="6" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="400" y="90" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">② HealthScoreService.recompute</text>
+        <text x="400" y="104" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">@Scheduled 或 @EventListener</text>
+
+        <line x1="220" y1="88" x2="280" y2="88" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+        <line x1="130" y1="148" x2="280" y2="92" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f7)"/>
+        <line x1="130" y1="198" x2="280" y2="96" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f7)"/>
+        <line x1="130" y1="248" x2="280" y2="100" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f7)"/>
+
+        <!-- 3. fetch profile + tags from cs-cdp -->
+        <rect x="280" y="140" width="240" height="50" rx="6" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="400" y="162" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">③ Feign: /api/cdp/profile/{uid}</text>
+        <text x="400" y="178" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">+ /api/cdp/tags?userId=uid</text>
+
+        <line x1="400" y1="110" x2="400" y2="140" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+
+        <line x1="520" y1="165" x2="560" y2="165" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+        <rect x="580" y="140" width="240" height="50" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="700" y="162" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">ProfileService.findByUid</text>
+        <text x="700" y="178" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">→ 30+ tag + 历史消费</text>
+
+        <!-- DB lookup -->
+        <line x1="700" y1="190" x2="700" y2="220" stroke="#3a4256" stroke-width="1.5"/>
+        <line x1="700" y1="220" x2="990" y2="220" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+        <rect x="880" y="205" width="220" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="990" y="225" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">cdp_customer_profile + cdp_tag</text>
+        <text x="990" y="238" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">SELECT</text>
+
+        <!-- 4. M3 analyze sentiment -->
+        <rect x="280" y="220" width="240" height="50" rx="6" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="400" y="242" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">④ M3.analyzeSentiment()</text>
+        <text x="400" y="258" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">最近 10 条聊天内容</text>
+
+        <line x1="400" y1="190" x2="400" y2="220" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+        <line x1="520" y1="245" x2="860" y2="245" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+        <rect x="870" y="270" width="240" height="40" rx="6" fill="#fff" stroke="#6b5e9f" stroke-width="1.5"/>
+        <text x="990" y="288" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">M3 sentiment_score</text>
+        <text x="990" y="302" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">0.0 - 1.0</text>
+
+        <!-- 5. compute health score -->
+        <rect x="280" y="305" width="240" height="80" rx="6" fill="rgba(201, 162, 63, 0.08)" stroke="#c9a23f" stroke-width="2"/>
+        <text x="400" y="325" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑤ HealthScore 计算</text>
+        <text x="400" y="343" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#c9a23f">0.3*login + 0.3*feature</text>
+        <text x="400" y="357" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#c9a23f">+ 0.2*ticket + 0.2*csat</text>
+        <text x="400" y="372" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">→ 0-100</text>
+
+        <line x1="400" y1="270" x2="400" y2="305" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+        <line x1="820" y1="295" x2="520" y2="345" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f7)"/>
+
+        <!-- 6. Save history -->
+        <rect x="280" y="410" width="240" height="50" rx="6" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="400" y="432" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑥ INSERT health_score_history</text>
+        <text x="400" y="448" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">timestamp · score · breakdown JSON</text>
+
+        <line x1="400" y1="385" x2="400" y2="410" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+        <line x1="520" y1="435" x2="990" y2="435" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f7)"/>
+        <rect x="880" y="420" width="220" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="990" y="440" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">health_score_history</text>
+        <text x="990" y="453" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">APPEND</text>
+
+        <!-- 7. tier classification -->
+        <polygon points="400,490 540,520 400,550 260,520" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="400" y="515" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">分数区间</text>
+        <text x="400" y="530" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">Champion/At-Risk/Churned</text>
+
+        <line x1="400" y1="460" x2="400" y2="490" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+
+        <!-- 8. tiered actions -->
+        <rect x="40" y="585" width="180" height="40" rx="6" fill="rgba(47, 111, 94, 0.08)" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="130" y="603" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#2f6f5e">≥80 Champion</text>
+        <text x="130" y="617" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#2f6f5e">VIP 升级 / 推荐官</text>
+
+        <rect x="240" y="585" width="160" height="40" rx="6" fill="rgba(201, 123, 63, 0.08)" stroke="#c97b3f" stroke-width="1.5"/>
+        <text x="320" y="603" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#c97b3f">60-80 Healthy</text>
+        <text x="320" y="617" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#c97b3f">常规运营</text>
+
+        <rect x="420" y="585" width="160" height="40" rx="6" fill="rgba(201, 162, 63, 0.08)" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="500" y="603" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#c9a23f">40-60 At-Risk</text>
+        <text x="500" y="617" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#c9a23f">AI 主动关怀</text>
+
+        <rect x="600" y="585" width="160" height="40" rx="6" fill="rgba(176, 99, 103, 0.08)" stroke="#b06367" stroke-width="1.5"/>
+        <text x="680" y="603" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#b06367">&lt;40 Churned</text>
+        <text x="680" y="617" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#b06367">CSM 介入</text>
+
+        <line x1="320" y1="550" x2="130" y2="585" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+        <line x1="380" y1="550" x2="320" y2="585" stroke="#c97b3f" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+        <line x1="420" y1="550" x2="500" y2="585" stroke="#c9a23f" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+        <line x1="460" y1="550" x2="680" y2="585" stroke="#b06367" stroke-width="1.5" marker-end="url(#arr-f7)"/>
+      </svg>
+      <div class="diag-caption">
+        <span class="chip gold">公式: 0.3·login + 0.3·feature + 0.2·ticket + 0.2·csat · 输出 0-100</span>
+      </div>
+    </div>
+
+    <div class="flow-notes">
+      <div class="note">
+        <div class="nk cn">触发策略</div>
+        <div class="nv cn">Cron 每小时 + 会话关闭事件 + 订单完成事件 · 三源聚合</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">分档阈值</div>
+        <div class="nv cn">≥80 Champion / 60-80 Healthy / 40-60 At-Risk / &lt;40 Churned</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">下游联动</div>
+        <div class="nv cn">At-Risk → cs-prediction 触发主动推送 · Churned → 通知 CSM</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!-- F8: 预见式触发流程 -->
+  <!-- ============================================================== -->
+  <section class="flow" id="f8">
+    <div class="flow-head">
+      <span class="flow-num">F8</span>
+      <h2 class="serif">预见式触发流程<span class="en">Predictive Trigger · event → evaluate → match → push</span></h2>
+    </div>
+    <p class="flow-desc cn">
+      V3 阶段 1-2 核心能力:<strong>事件 → 规则匹配 → AI 推理 → 主动推送</strong>。前端埋点 SDK 把行为/订单事件推到 cs-cdp,cs-cdp 写入 cdp_event 后通过 Redis Stream 通知 cs-prediction,后者加载 prediction_rule 表 + 调 M3 推理,命中后通过 STOMP 推到客户端 /user/{uid}/queue/events。
+    </p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1140 800" style="width:100%; height:auto; display:block;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr-f8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3a4256"/>
+          </marker>
+        </defs>
+
+        <rect x="20" y="20" width="220" height="760" rx="8" fill="rgba(94, 122, 159, 0.05)" stroke="#5e7a9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="130" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f" letter-spacing="2">前端 SDK / 外部</text>
+        <rect x="260" y="20" width="220" height="760" rx="8" fill="rgba(47, 111, 94, 0.05)" stroke="#2f6f5e" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="370" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#2f6f5e" letter-spacing="2">cs-cdp</text>
+        <rect x="500" y="20" width="240" height="760" rx="8" fill="rgba(201, 162, 63, 0.05)" stroke="#c9a23f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="620" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#c9a23f" letter-spacing="2">cs-prediction</text>
+        <rect x="760" y="20" width="180" height="760" rx="8" fill="rgba(107, 94, 159, 0.05)" stroke="#6b5e9f" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="850" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#6b5e9f" letter-spacing="2">M3 推理</text>
+        <rect x="960" y="20" width="160" height="760" rx="8" fill="rgba(176, 99, 103, 0.05)" stroke="#b06367" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="1040" y="40" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#b06367" letter-spacing="2">DB / 推送</text>
+
+        <!-- 1 -->
+        <rect x="40" y="70" width="180" height="40" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="90" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">① 行为埋点 SDK</text>
+        <text x="130" y="104" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">page_view · add_cart</text>
+
+        <rect x="40" y="130" width="180" height="40" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="130" y="150" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">订单回调 webhook</text>
+        <text x="130" y="164" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">支付 / 物流更新</text>
+
+        <rect x="40" y="190" width="180" height="40" rx="6" fill="#fff" stroke="#5e7a9f" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="130" y="210" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">chat_start / chat_end</text>
+        <text x="130" y="224" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">会话事件</text>
+
+        <!-- 2 cdp controller -->
+        <line x1="220" y1="100" x2="260" y2="100" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f8)"/>
+        <line x1="220" y1="150" x2="260" y2="100" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f8)"/>
+        <line x1="220" y1="210" x2="260" y2="100" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f8)"/>
+
+        <rect x="280" y="80" width="180" height="44" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="370" y="100" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">② CdpController.record</text>
+        <text x="370" y="116" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">POST /api/cdp/event</text>
+
+        <!-- 3 INSERT cdp_event -->
+        <line x1="370" y1="124" x2="370" y2="155" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f8)"/>
+        <rect x="280" y="155" width="180" height="50" rx="6" fill="#fff" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="370" y="177" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">③ INSERT cdp_event</text>
+        <text x="370" y="193" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">payload JSON · occurred_at</text>
+
+        <line x1="460" y1="180" x2="1040" y2="180" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f8)"/>
+        <rect x="970" y="160" width="140" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="1040" y="180" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">cdp_event</text>
+        <text x="1040" y="193" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">APPEND</text>
+
+        <!-- 4 publish to stream -->
+        <line x1="370" y1="205" x2="370" y2="240" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f8)"/>
+        <rect x="280" y="240" width="180" height="60" rx="6" fill="rgba(47, 111, 94, 0.08)" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="370" y="262" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">④ XADD cdp:events</text>
+        <text x="370" y="278" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#2f6f5e">Redis Stream</text>
+        <text x="370" y="292" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">异步广播</text>
+
+        <!-- 5 cs-prediction consume -->
+        <line x1="460" y1="270" x2="500" y2="270" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f8)"/>
+        <rect x="510" y="240" width="220" height="60" rx="6" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="620" y="262" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑤ @EventListener</text>
+        <text x="620" y="278" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">onCdpEvent()</text>
+        <text x="620" y="292" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">订阅 Redis Stream</text>
+
+        <!-- 6 RuleEngine evaluate -->
+        <line x1="620" y1="300" x2="620" y2="335" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f8)"/>
+        <rect x="510" y="335" width="220" height="60" rx="6" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="620" y="357" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑥ RuleEngine.evaluate</text>
+        <text x="620" y="373" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">condition_expr (JSONLogic)</text>
+        <text x="620" y="387" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">+ 历史事件聚合</text>
+
+        <line x1="730" y1="365" x2="1040" y2="365" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f8)"/>
+        <rect x="970" y="345" width="140" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="1040" y="365" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">prediction_rule</text>
+        <text x="1040" y="378" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">规则加载</text>
+
+        <!-- Decision: rule matched? -->
+        <polygon points="620,420 760,455 620,490 480,455" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="620" y="450" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">规则命中?</text>
+        <text x="620" y="465" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">+ threshold + cooldown</text>
+
+        <line x1="620" y1="395" x2="620" y2="420" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f8)"/>
+
+        <!-- NO path -->
+        <line x1="480" y1="455" x2="370" y2="455" stroke="#b06367" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="430" y="450" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#b06367">NO → 跳过</text>
+
+        <!-- YES path: M3 reason -->
+        <line x1="620" y1="490" x2="620" y2="525" stroke="#2f6f5e" stroke-width="1.5" marker-end="url(#arr-f8)"/>
+        <text x="635" y="510" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#2f6f5e">YES</text>
+
+        <rect x="510" y="525" width="220" height="50" rx="6" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="620" y="547" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑦ M3 Personalize</text>
+        <text x="620" y="563" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">填充模板变量</text>
+
+        <line x1="730" y1="550" x2="760" y2="550" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f8)"/>
+        <rect x="770" y="525" width="160" height="50" rx="6" fill="#fff" stroke="#6b5e9f" stroke-width="1.5"/>
+        <text x="850" y="547" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">M3 Chat</text>
+        <text x="850" y="563" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">个性化文案</text>
+
+        <!-- 8 INSERT prediction_event -->
+        <line x1="620" y1="575" x2="620" y2="610" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f8)"/>
+        <rect x="510" y="610" width="220" height="50" rx="6" fill="#fff" stroke="#c9a23f" stroke-width="1.5"/>
+        <text x="620" y="630" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑧ INSERT prediction_event</text>
+        <text x="620" y="646" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">status=PENDING · 审计</text>
+
+        <line x1="730" y1="635" x2="1040" y2="635" stroke="#3a4256" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arr-f8)"/>
+        <rect x="970" y="615" width="140" height="40" rx="6" fill="#fff" stroke="#b06367" stroke-width="1.5"/>
+        <text x="1040" y="635" text-anchor="middle" font-family="Outfit, sans-serif" font-size="10" font-weight="700" fill="#14171e">prediction_event</text>
+        <text x="1040" y="648" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#7c7a72">APPEND</text>
+
+        <!-- 9 STOMP push -->
+        <line x1="620" y1="660" x2="620" y2="695" stroke="#3a4256" stroke-width="1.5" marker-end="url(#arr-f8)"/>
+        <rect x="510" y="695" width="220" height="50" rx="6" fill="rgba(47, 111, 94, 0.08)" stroke="#2f6f5e" stroke-width="1.5"/>
+        <text x="620" y="715" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#14171e">⑨ STOMP Push</text>
+        <text x="620" y="730" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#2f6f5e">/user/{uid}/queue/events</text>
+
+        <!-- Customer receives -->
+        <line x1="510" y1="720" x2="220" y2="720" stroke="#2f6f5e" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-f8)"/>
+        <rect x="40" y="700" width="180" height="44" rx="6" fill="rgba(94, 122, 159, 0.08)" stroke="#5e7a9f" stroke-width="1.5"/>
+        <text x="130" y="720" text-anchor="middle" font-family="Outfit, sans-serif" font-size="11" font-weight="700" fill="#5e7a9f">⑩ 客户 UI 收到推送</text>
+        <text x="130" y="734" text-anchor="middle" font-family="Outfit, sans-serif" font-size="9" fill="#5e7a9f">ProactiveFeed 卡片渲染</text>
+      </svg>
+      <div class="diag-caption">
+        <span class="chip gold" style="margin-left:auto">5 个内置规则: ORDER_STUCK_24H · PAYMENT_FAILED_3X · SILENT_30D · BIRTHDAY_WEEK · HIGH_VALUE_RETURN</span>
+      </div>
+    </div>
+
+    <div class="flow-notes">
+      <div class="note">
+        <div class="nk cn">Redis Stream</div>
+        <div class="nv cn">cs-cdp XADD → cs-prediction XREAD · 异步解耦,失败重试</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">规则引擎</div>
+        <div class="nv cn">JSONLogic 表达式,支持 $gte / $in / 时间窗口,管理员可热更新</div>
+      </div>
+      <div class="note">
+        <div class="nk cn">节流</div>
+        <div class="nv cn">同 user 同 rule 24h 内最多触发 1 次 · 防止打扰</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer>
+    <div>
+      <div style="font-weight:700; color:var(--ink); margin-bottom:4px;">online-chat · V3 智能客服平台</div>
+      <div>8 大核心业务流程图 · 含登录 / 建会话 / 抢单 / 消息 / 转人工 / 视频电话 / 健康分 / 预见式</div>
+    </div>
+    <div class="links">
+      <a href="ARCHITECTURE.html">→ 架构图 / Architecture</a>
+      <a href="DEV-MANUAL.docx">→ 开发手册 / Manual</a>
+      <a href="API_CHAIN.md">→ API 链路 / API Chain</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

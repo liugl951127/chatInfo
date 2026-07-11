@@ -1,0 +1,383 @@
+# =============================================================================
+# online-chat docker-compose.yml - 一键启动全栈
+# -----------------------------------------------------------------------------
+# 包含: 9 个微服务 (cs-auth, cs-im, cs-cdp, cs-community, cs-prediction,
+#        cs-customer-success, cs-ai, cs-video, cs-voice) + cs-gateway +
+#        frontend (nginx) + redis + mariadb
+#
+# 用法:
+#   cp .env.example .env
+#   docker-compose --env-file .env up -d --build
+#   docker-compose ps
+#   docker-compose logs -f cs-im
+#
+# 访问:
+#   - 前端:           http://localhost:80
+#   - 网关:           http://localhost:9000
+#   - cs-auth 直连:   http://localhost:8081
+#   - H2 console:     http://localhost:8081/h2-console (standalone 模式)
+# =============================================================================
+
+version: "3.8"
+
+# ---------- 公共配置 (YAML 锚点) ----------
+x-common-env: &common-env
+  TZ: ${TZ:-Asia/Shanghai}
+  JAVA_OPTS: ${JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC}
+  JWT_SECRET: ${JWT_SECRET}
+  JWT_TTL_MS: ${JWT_TTL_MS:-86400000}
+
+# ---------- 数据源 (mariadb 容器) ----------
+x-db-env: &db-env
+  SPRING_DATASOURCE_URL: jdbc:mysql://mariadb:${MARIADB_PORT:-3306}/${MARIADB_DATABASE:-online_chat}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+  SPRING_DATASOURCE_USERNAME: ${MARIADB_USER:-chatuser}
+  SPRING_DATASOURCE_PASSWORD: ${MARIADB_PASSWORD:-chatpass_2026}
+
+x-backend-base: &backend-base
+  build:
+    context: ./backend
+    dockerfile: cs-common/../cs-xxx/Dockerfile   # 占位, 各 service 覆盖
+  restart: unless-stopped
+  environment:
+    <<: *common-env
+    SPRING_PROFILES_ACTIVE: standalone
+  depends_on:
+    redis:
+      condition: service_healthy
+    mariadb:
+      condition: service_healthy
+  networks:
+    - chat-net
+
+# ---------- 网络 ----------
+networks:
+  chat-net:
+    driver: bridge
+    name: chat-net
+
+# ---------- 数据卷 ----------
+volumes:
+  mariadb-data:
+  redis-data:
+
+# ---------- 服务 ----------
+services:
+
+  # =================================================================
+  # 基础依赖
+  # =================================================================
+  mariadb:
+    image: mariadb:11.2
+    container_name: chat-mariadb
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-rootpass_2026}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-online_chat}
+      MARIADB_USER: ${MARIADB_USER:-chatuser}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-chatpass_2026}
+    ports:
+      - "${MARIADB_PORT:-3306}:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - chat-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: chat-redis
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+    command:
+      - "redis-server"
+      - "--requirepass"
+      - "${REDIS_PASSWORD:-}"
+      - "--appendonly"
+      - "yes"
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - chat-net
+
+  # =================================================================
+  # 后端 9 个微服务 (cs-xxx)
+  # =================================================================
+  cs-auth:
+    build:
+      context: ./backend
+      dockerfile: cs-auth/Dockerfile
+    container_name: chat-cs-auth
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *db-env]
+      # 使用默认 application.yml (mariadb + redis) - docker-compose 全栈模式
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+    ports:
+      - "${PORT_AUTH:-8081}:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+      mariadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - chat-net
+
+  cs-im:
+    build:
+      context: ./backend
+      dockerfile: cs-im/Dockerfile
+    container_name: chat-cs-im
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *db-env]
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+    ports:
+      - "${PORT_IM:-8082}:8082"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8082/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - chat-net
+
+  cs-cdp:
+    build:
+      context: ./backend
+      dockerfile: cs-cdp/Dockerfile
+    container_name: chat-cs-cdp
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *db-env]
+    ports:
+      - "${PORT_CDP:-8083}:8083"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8083/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - chat-net
+
+  cs-community:
+    build:
+      context: ./backend
+      dockerfile: cs-community/Dockerfile
+    container_name: chat-cs-community
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *db-env]
+    ports:
+      - "${PORT_COMMUNITY:-8084}:8084"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8084/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - chat-net
+
+  cs-prediction:
+    build:
+      context: ./backend
+      dockerfile: cs-prediction/Dockerfile
+    container_name: chat-cs-prediction
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *db-env]
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      M3_ADAPTER_URL: ${M3_ADAPTER_URL:-http://m3-adapter:8084}
+    ports:
+      - "${PORT_PREDICTION:-8085}:8085"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8085/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - chat-net
+
+  cs-customer-success:
+    build:
+      context: ./backend
+      dockerfile: cs-customer-success/Dockerfile
+    container_name: chat-cs-customer-success
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *db-env]
+    ports:
+      - "${PORT_CUSTOMER_SUCCESS:-8086}:8086"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8086/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - chat-net
+
+  cs-ai:
+    build:
+      context: ./backend
+      dockerfile: cs-ai/Dockerfile
+    container_name: chat-cs-ai
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *db-env]
+    ports:
+      - "${PORT_AI:-8087}:8087"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8087/api/ai/health || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - chat-net
+
+  cs-video:
+    build:
+      context: ./backend
+      dockerfile: cs-video/Dockerfile
+    container_name: chat-cs-video
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *db-env]
+    ports:
+      - "${PORT_VIDEO:-8088}:8088"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8088/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - chat-net
+
+  cs-voice:
+    build:
+      context: ./backend
+      dockerfile: cs-voice/Dockerfile
+    container_name: chat-cs-voice
+    restart: unless-stopped
+    environment:
+      <<: [*common-env, *db-env]
+    ports:
+      - "${PORT_VOICE:-8089}:8089"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8089/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - chat-net
+
+  # =================================================================
+  # 网关 (路由聚合) - docker profile
+  # =================================================================
+  cs-gateway:
+    build:
+      context: ./backend
+      dockerfile: cs-gateway/Dockerfile
+    container_name: chat-cs-gateway
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      SPRING_PROFILES_ACTIVE: docker
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      M3_ADAPTER_URL: ${M3_ADAPTER_URL:-http://m3-adapter:8084}
+    ports:
+      - "${PORT_GATEWAY:-9000}:9000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      cs-auth:
+        condition: service_started
+      cs-im:
+        condition: service_started
+      cs-cdp:
+        condition: service_started
+      cs-community:
+        condition: service_started
+      cs-prediction:
+        condition: service_started
+      cs-customer-success:
+        condition: service_started
+      cs-ai:
+        condition: service_started
+      cs-video:
+        condition: service_started
+      cs-voice:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:9000/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    networks:
+      - chat-net
+
+  # =================================================================
+  # 前端 (Vue 3 SPA + nginx)
+  # =================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-/api}
+    container_name: chat-frontend
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      BACKEND_GATEWAY_URL: ${BACKEND_GATEWAY_URL:-http://cs-gateway}
+    ports:
+      - "${PORT_FRONTEND:-80}:80"
+    depends_on:
+      - cs-gateway
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/healthz || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - chat-net

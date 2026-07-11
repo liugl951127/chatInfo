@@ -1,11 +1,16 @@
 /**
  * useSentiment.js - 情感分析 composable.
  * ----------------------------------------------------------------------------
- * 客户端简易情感分析 (基于关键词, 不调后端, 0ms 响应).
- * 后续阶段: 调 cs-common LocalAiService (HTTP).
+ * 数据流:
+ *   1. 优先调后端 /api/ai/sentiment (Java 自研, 多语言支持)
+ *   2. 后端不可达时, 降级为本地关键词匹配 (即时, 0 依赖)
+ *
+ * 状态: score (-1..1) / label (angry/sad/neutral/happy) / confidence (0..1)
  */
 import { ref, computed } from 'vue'
+import { aiApi } from '@/api/ai'
 
+/** 本地兜底: 关键词 + 否定 + 程度修饰 */
 const POSITIVE = ['好', '棒', '优秀', '满意', '喜欢', '感谢', '谢谢', '赞', '开心', '高兴', '完美', '贴心', '专业', '快速', '高效']
 const NEGATIVE = ['差', '烂', '垃圾', '差评', '投诉', '退款', '失望', '生气', '愤怒', '烦', '麻烦', '慢', '卡', '气死', '气人', '讨厌', '可恶', '无语']
 const NEGATIONS = ['不', '没', '无', '未', '别']
@@ -15,6 +20,7 @@ export function useSentiment() {
   const score = ref(0)
   const label = ref('neutral')  // angry / sad / neutral / happy
   const confidence = ref(0)
+  const source = ref('local')   // 'remote' / 'local' - 用于调试
 
   const color = computed(() => {
     if (label.value === 'angry') return '#F56C6C'
@@ -30,8 +36,42 @@ export function useSentiment() {
     return '😐'
   })
 
-  function analyze(text) {
+  /**
+   * 分析文本. 优先后端, 失败降级本地.
+   * @param {string} text 输入文本
+   */
+  async function analyze(text) {
     if (!text) { reset(); return }
+    // 短文本直接本地, 省一次请求
+    if (text.length < 4) {
+      analyzeLocal(text)
+      return
+    }
+    try {
+      const r = await aiApi.sentiment(text)
+      if (r && typeof r.score === 'number') {
+        score.value = r.score
+        confidence.value = r.confidence ?? 0.5
+        // 后端返回 label 转成统一格式
+        if (r.sentiment === 'angry' || r.sentiment === 'negative' || r.score < -0.3) {
+          label.value = r.score < -0.6 ? 'angry' : 'sad'
+        } else if (r.sentiment === 'positive' || r.score > 0.3) {
+          label.value = 'happy'
+        } else {
+          label.value = 'neutral'
+        }
+        source.value = 'remote'
+        return
+      }
+      analyzeLocal(text)
+    } catch (e) {
+      // 后端不可达, 降级本地
+      analyzeLocal(text)
+    }
+  }
+
+  /** 本地关键词分析 (降级) */
+  function analyzeLocal(text) {
     const toks = tokenize(text)
     let s = 0, hits = 0
     for (let i = 0; i < toks.length; i++) {
@@ -45,12 +85,10 @@ export function useSentiment() {
         if (NEGATIONS.includes(toks[k])) { negated = true; break }
       }
       if (POSITIVE.includes(toks[i])) {
-        s += intens
-        hits++
+        s += intens; hits++
         if (negated) s -= intens * 2
       } else if (NEGATIVE.includes(toks[i])) {
-        s -= intens
-        hits++
+        s -= intens; hits++
         if (negated) s += intens * 2
       }
     }
@@ -62,6 +100,7 @@ export function useSentiment() {
     else if (norm < 0) label.value = 'sad'
     else if (norm > 0.3) label.value = 'happy'
     else label.value = 'neutral'
+    source.value = 'local'
   }
 
   function reset() {
@@ -70,9 +109,10 @@ export function useSentiment() {
     confidence.value = 0
   }
 
-  return { score, label, confidence, color, emoji, analyze, reset }
+  return { score, label, confidence, color, emoji, source, analyze, reset }
 }
 
+/** 中文 + 英文 token 化 (保留 1-2 字中文组合) */
 function tokenize(text) {
   const toks = []
   let buf = ''

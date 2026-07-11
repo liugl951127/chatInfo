@@ -1,0 +1,93 @@
+# =============================================================================
+# cs-auth standalone profile - 独立运行配置
+# -----------------------------------------------------------------------------
+# - 默认端口: 8081 (与默认 application.yml 的 9001 区分)
+# - 数据库:   H2 内存库 (mem=auth) - 无需 mariadb
+# - 缓存:     关闭 Redis 自动装配 - 无需 redis
+# - 鉴权:     cs-common 的 WebMvcConfigSupport 会自动装配 JwtAuthInterceptor,
+#             须显式给出 chat.jwt.secret 防止占位符 warning
+# - 健康检查: /actuator/health + /api/auth/health (fallback)
+# =============================================================================
+
+server:
+  port: 8081
+
+spring:
+  application:
+    name: cs-auth
+  profiles:
+    active: standalone
+
+  # ---------- 数据源: H2 内存 ----------
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:auth;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password: ""
+
+  # 让 Spring 用 H2 方言
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # ---------- JPA / MyBatis-Plus ----------
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: false
+
+  sql:
+    init:
+      mode: never          # 业务不依赖 schema.sql 即可跑
+
+  # ---------- Redis: 关闭自动装配, 避免连接 6379 ----------
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  # ---------- Jackson ----------
+  jackson:
+    time-zone: Asia/Shanghai
+
+  # ---------- 文件上传 ----------
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+
+# ---------- MyBatis-Plus ----------
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+
+# ---------- 业务配置 ----------
+chat:
+  jwt:
+    # standalone 专用, 与生产不同; 32+ 字符随机串
+    secret: STANDALONE_cs-auth_secret_2026_32B_change-me
+    ttl-ms: 86400000
+
+# ---------- 日志 ----------
+logging:
+  level:
+    root: INFO
+    com.chat: INFO
+    com.chat.auth: DEBUG
+
+# ---------- 健康检查 (Actuator) ----------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true

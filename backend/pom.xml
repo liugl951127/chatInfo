@@ -29,6 +29,7 @@
         <module>cs-community</module>
         <module>cs-video</module>
         <module>cs-voice</module>
+        <module>cs-ai</module>
     </modules>
 
     <properties>

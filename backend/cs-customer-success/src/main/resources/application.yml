@@ -32,6 +32,10 @@ chat:
   m3:
     adapter-url: http://localhost:8084
     default-model: minimax3
+  im:
+    # cs-im 服务基础 URL (用于 AgentStatsService 调 /api/im/stats/agent/{id})
+    # 部署到 k8s 后改为 http://cs-im:9002
+    base-url: http://localhost:9002
 
 logging:
   level:

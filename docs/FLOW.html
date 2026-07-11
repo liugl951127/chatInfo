@@ -1643,5 +1643,85 @@
 .arrow { display: flex; align-items: center; font-size: 20px; color: #94a3b8; }
 </style>
 
+
+<div class="section" id="v6-flow">
+  <h2>🚀 V6.0 新增流程 (客户体验)</h2>
+
+  <div class="flow">
+    <h3>💾 草稿自动保存流程</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>用户输入</strong><br>useDraft 监听 getValue 变化</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>防抖 500ms</strong><br>避免高频写 localStorage</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>写入 localStorage</strong><br>key = cs_drafts, Map<key, value></div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>LRU 50 key</strong><br>超出后保留最近 50 个</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>切换/刷新恢复</strong><br>切换 sessionId 自动加载</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>⌨ 全局快捷键流程 (Cmd+/ 唤起帮助)</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>按键事件</strong><br>document keydown 监听 (共享)</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>parseKey 解析</strong><br>识别 7 类快捷键 (enter/search/help/escape...)</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>查找 handler</strong><br>handlers Map<event, callbacks></div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>preventDefault</strong><br>除了 escape/shift-enter</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>执行回调</strong><br>try-catch 隔离错误</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>📎 拖拽上传流程</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>dragenter</strong><br>counter++ (处理子元素)</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>显示遮罩</strong><br>isDragging = true</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>dragover</strong><br>dropEffect = 'copy'</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>drop</strong><br>解析 files, 触发 onFiles</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>上传回调</strong><br>fileService.upload + 发送</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>🎨 主题切换流程 (data-theme)</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>用户点击</strong><br>ThemeToggle 浅/暗/自动</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>setTheme(t)</strong><br>localStorage 记忆 + state 变更</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>apply(t)</strong><br>设置 data-theme 属性</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>CSS 变量</strong><br>11 类组件重新应用样式</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>系统监听</strong><br>prefers-color-scheme 变化自动应用</div></div>
+    </div>
+  </div>
+
+  <div class="flow">
+    <h3>⚠ 错误处理统一流程 (8 类错误码)</h3>
+    <div class="flow-steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><strong>Axios 拦截</strong><br>业务错误抛 ApiError</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><strong>handleError(err)</strong><br>getErrorMessage 8 类</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><strong>401 弹窗</strong><br>ElMessageBox 确认跳 /login</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><strong>其他显示</strong><br>ElMessage type=error/warning</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="step-num">5</div><div class="step-body"><strong>用户确认</strong><br>「我知道了」自动消失</div></div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

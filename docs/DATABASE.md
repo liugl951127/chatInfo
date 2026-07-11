@@ -516,3 +516,68 @@ EXPLAIN SELECT * FROM chat_message WHERE session_id=100;
 | v2.5.0 | 2025-12 | 9 张表 (cs-im 全部) |
 | v2.0.0 | 2025-08 | + chat_record, chat_record_chunk (录像) |
 | v1.0.0 | 2025-01 | user + chat_session + chat_message 基础 |
+
+---
+
+# 附录: V6 增强 (2026-07-12)
+
+## A. 客户端索引 (V6)
+
+为支持实时大屏 / AI 自研 / 限流 / 脱敏, 新增 5 张轻量级表 (5 个库, 已包含在原 17 张内).
+
+### A.1 cdp_event 索引优化
+- 主键: id
+- 二级: (uid, created_at) 用于用户行为时间线
+- 二级: (event_type, created_at) 用于事件类型分析
+- 三级: (session_id) 用于会话回溯
+
+### A.2 cdp_tag 索引
+- 主键: id
+- 二级: (tag_code) UNIQUE 用于代码查重
+- 二级: (category, is_active) 用于按分类列出活跃标签
+
+### A.3 cdp_customer_profile 索引
+- 主键: uid (UNIQUE)
+- 二级: (vip_level, updated_at) 用于 VIP 客户查询
+- 三级: (last_active_at) 用于流失客户识别 (30 天未活跃)
+
+## B. 17 张表速查表
+
+| 库 | 表名 | 用途 | 行数级 |
+|---|------|------|--------|
+| cs_auth | user | 鉴权 + 角色 | 1000+ |
+| cs_im | chat_session | 会话核心 | 100K+ |
+| cs_im | chat_message | 消息 | 1M+ |
+| cs_im | message_receipt | 已读回执 | 100K+ |
+| cs_im | canned_response | 模板回复 | 100+ |
+| cs_im | file_storage | 文件 | 10K+ |
+| cs_im | audit_log | 审计日志 | 100K+ |
+| cs_im | chat_record | 录像 | 1K+ |
+| cs_cdp | cdp_event | 事件流 | 1M+ |
+| cs_cdp | cdp_tag | 标签 | 50+ |
+| cs_cdp | cdp_customer_profile | 用户画像 | 1000+ |
+| cs_community | community_post | 帖子 | 100+ |
+| cs_community | community_reply | 回复 | 1K+ |
+| cs_pred | prediction_rule | 规则 | 20+ |
+| cs_pred | prediction_event | 触发事件 | 10K+ |
+| cs_success | health_score_history | 健康分 | 10K+ |
+| (cs_im) | user | 共用 |
+
+## C. 容量规划
+
+按 1000 客户 + 50 坐席 + 1 万会话/天:
+
+- 每天新增 chat_message: ~50 万 (平均 50 条/会话)
+- 每天新增 cdp_event: ~100 万 (10 事件/客户/天)
+- 每天新增 chat_record: ~500 (录像率 5%)
+- 数据库年增长: ~200 GB
+- 推荐磁盘: 1 TB SSD + 备份到 OSS
+
+## D. 备份策略
+
+- 每日 0 点全量备份 (mysqldump)
+- 每周日 0 点完整备份 + 7 天保留
+- 每月归档到 OSS cold storage
+- RPO (数据丢失容忍): 1 天
+- RTO (恢复时间目标): 4 小时
+

@@ -3,6 +3,7 @@ package com.chat.success.controller;
 import com.chat.common.api.ApiResponse;
 import com.chat.common.security.UserContext;
 import com.chat.success.entity.HealthScoreHistory;
+import com.chat.success.service.AgentStatsService;
 import com.chat.success.service.HealthScoreService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,6 +29,7 @@ import java.util.Map;
 public class SuccessController {
 
     private final HealthScoreService healthService;
+    private final AgentStatsService agentStatsService;
 
     @Operation(summary = "我的健康分 (最新)")
     @GetMapping("/health/me")
@@ -79,5 +81,12 @@ public class SuccessController {
         double avgCsat = body.get("avgCsat") == null ? 4.0
                 : Double.parseDouble(body.get("avgCsat").toString());
         return ApiResponse.ok(healthService.computeFromEvents(uid, activeDays, avgCsat));
+    }
+
+    @Operation(summary = "坐席 dashboard 统计 (阶段 1 mock + 部分真数据)")
+    @GetMapping("/agent-stats")
+    public ApiResponse<AgentStatsService.AgentStats> agentStats(@RequestParam(required = false) Long agentId) {
+        if (agentId == null) agentId = UserContext.userId();
+        return ApiResponse.ok(agentStatsService.getStats(agentId));
     }
 }

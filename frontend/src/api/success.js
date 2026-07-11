@@ -16,4 +16,8 @@ export const successApi = {
     const r = await http.get('/api/success/health/me/history')
     return r.data
   },
+  async agentStats(agentId) {
+    const r = await http.get('/api/success/agent-stats', { params: agentId ? { agentId } : {} })
+    return r.data
+  },
 }

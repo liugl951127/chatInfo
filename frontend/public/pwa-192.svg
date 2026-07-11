@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#409EFF"/>
+      <stop offset="50%" stop-color="#67C23A"/>
+      <stop offset="100%" stop-color="#E6A23C"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="url(#g)"/>
+  <text x="50%" y="55%" text-anchor="middle" font-size="80" font-family="Arial,sans-serif" fill="#fff" dominant-baseline="middle">💬</text>
+  <text x="50%" y="80%" text-anchor="middle" font-size="20" font-family="Arial,sans-serif" fill="#fff" font-weight="700">智能客服</text>
+</svg>

@@ -10,7 +10,9 @@
  * 阶段 1 用静态 mock 数据, 阶段 2 调后端 API.
  */
 import { ref, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { ChatDotRound, Timer, Star, Trophy, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
+import { successApi } from '@/api/success'
 
 const stats = ref([
   { icon: ChatDotRound, label: '今日会话', value: '24', trend: '+12%', color: '#409EFF' },
@@ -30,7 +32,7 @@ const trend = ref([
   { day: '周日', count: 18 },
 ])
 
-const maxCount = Math.max(...trend.value.map(t => t.count), 1)
+const maxCount = ref(Math.max(...trend.value.map(t => t.count), 1))
 
 /** 能力评分 (基于本地 AI 推荐命中率等) */
 const skills = ref([
@@ -40,13 +42,39 @@ const skills = ref([
   { name: '建议反馈', score: 64, level: 'intermediate' },
 ])
 
-onMounted(() => {
-  // 阶段 2: 调 /api/success/agent-stats
+onMounted(async () => {
+  loading.value = true
+  try {
+    const data = await successApi.agentStats()
+    applyData(data)
+  } catch (e) {
+    ElMessage.warning('Dashboard 暂用 mock 数据: ' + e.message)
+  } finally {
+    loading.value = false
+  }
 })
+
+const loading = ref(false)
+
+const SKILL_LABEL = { expert: '专家', advanced: '熟练', intermediate: '进阶', beginner: '入门' }
+
+function applyData(data) {
+  stats.value = [
+    { icon: ChatDotRound, label: '今日会话', value: String(data.todaySessions), trend: '+12%', color: '#409EFF' },
+    { icon: Timer, label: '平均响应', value: data.todayAvgResponseSec + 's', trend: '-3s', color: '#67C23A' },
+    { icon: Star, label: '客户满意度', value: data.todayAvgCsat + '/5', trend: '+0.2', color: '#E6A23C' },
+    { icon: Trophy, label: '本月接单', value: String(data.monthSessions), trend: '+8%', color: '#F56C6C' },
+  ]
+  trend.value = (data.last7Days || []).map(d => ({ day: d.date, count: d.count }))
+  if (trend.value.length) {
+    maxCount.value = Math.max(...trend.value.map(t => t.count), 1)
+  }
+  skills.value = (data.skills || []).map(s => ({ name: s.name, score: s.score, level: s.level }))
+}
 </script>
 
 <template>
-  <div class="agent-dashboard">
+  <div class="agent-dashboard" v-loading="loading">
     <div class="dash-header">
       <h3><el-icon><DataAnalysis /></el-icon> 数据看板</h3>
       <span class="dash-sub">今日表现</span>
@@ -74,7 +102,7 @@ onMounted(() => {
         <div class="bar-chart">
           <div v-for="t in trend" :key="t.day" class="bar-col">
             <div class="bar-value">{{ t.count }}</div>
-            <div class="bar" :style="{ height: (t.count / maxCount * 100) + '%' }"></div>
+            <div class="bar" :style="{ height: (t.count / maxCount.value * 100) + '%' }"></div>
             <div class="bar-label">{{ t.day }}</div>
           </div>
         </div>
@@ -88,7 +116,7 @@ onMounted(() => {
             <div class="skill-header">
               <span class="skill-name">{{ sk.name }}</span>
               <el-tag size="small" :type="sk.level === 'expert' ? 'success' : (sk.level === 'advanced' ? 'warning' : 'info')">
-                {{ sk.level === 'expert' ? '专家' : (sk.level === 'advanced' ? '熟练' : '进阶') }}
+                {{ SKILL_LABEL[sk.level] || sk.level }}
               </el-tag>
             </div>
             <div class="skill-bar">

@@ -34,7 +34,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import { Menu, Document, Goblet, ChatLineRound, Bell, User, Promotion } from '@element-plus/icons-vue'
+import { Menu, Document, Goblet, ChatLineRound, Bell, User, Promotion, DataAnalysis } from '@element-plus/icons-vue'
 import { imApi } from '@/api/im'
 import { useUserStore } from '@/stores/user'
 import { StompClient } from '@/utils/ws-client'
@@ -42,12 +42,14 @@ import MessageList from '@/components/chat/MessageList.vue'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
 import SmartReplySuggestions from '@/components/chat/SmartReplySuggestions.vue'
+import AgentDashboard from '@/components/dashboard/AgentDashboard.vue'
 import { useResponsive } from '@/composables/useResponsive'
 import { useNotification } from '@/composables/useNotification'
 
 const router = useRouter()
 const userStore = useUserStore()
 const { isMobile, drawerVisible, previewImageUrl } = useResponsive()
+const showDashboard = ref(false)
 // v6: 桌面通知走 permission-sdk 统一管理
 const { notify: desktopNotify, requestPermission: requestNotifPerm, status: notifStatus } = useNotification({ defaultCooldownMs: 30_000 })
 
@@ -508,8 +510,16 @@ onBeforeUnmount(() => {
         <el-option label="忙碌" value="BUSY" />
         <el-option label="离线" value="OFFLINE" />
       </el-select>
+      <el-button size="small" round class="dash-btn" @click="showDashboard = true">
+        <el-icon><DataAnalysis /></el-icon>&nbsp;看板
+      </el-button>
       <el-button size="small" link @click="logout">退出</el-button>
     </header>
+
+    <!-- 坐席数据看板 -->
+    <el-dialog v-model="showDashboard" title="数据看板" width="900px" top="5vh">
+      <AgentDashboard />
+    </el-dialog>
 
     <main>
       <!-- 桌面侧栏: 会话列表 -->
@@ -892,6 +902,16 @@ main { flex: 1; display: flex; min-height: 0; }
 .claim-btn:disabled {
   background: #c0c4cc;
   box-shadow: none;
+}
+
+.dash-btn {
+  background: linear-gradient(135deg, #409EFF, #909399);
+  color: #fff;
+  border: none;
+}
+.dash-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
 }
 
 /* 等候客户面板 (新样式) */

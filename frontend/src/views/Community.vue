@@ -113,7 +113,13 @@ function timeAgo(t) {
           <span class="cm-stat" @click="onLike(p.id)"><el-icon><Star /></el-icon> {{ p.likeCount || 0 }}</span>
         </div>
       </div>
-      <el-empty v-if="!loading && posts.length === 0" description="暂无帖子, 来发第一个吧!" />
+      <!-- 空状态: 欢迎插画 -->
+      <div v-if="!loading && posts.length === 0" class="cm-empty">
+        <div class="empty-emoji">💬</div>
+        <h3>社区还没有内容</h3>
+        <p>来发第一个帖子, 与百万客户分享经验</p>
+        <el-button type="primary" round :icon="EditPen" @click="showCreate = true">发起话题</el-button>
+      </div>
     </div>
 
     <!-- 发帖弹窗 -->
@@ -172,6 +178,36 @@ function timeAgo(t) {
   color: #fff;
 }
 .cm-list { display: flex; flex-direction: column; gap: 12px; }
+
+.cm-empty {
+  text-align: center;
+  padding: 60px 20px;
+  background: linear-gradient(135deg, #f5f7fa, #fff);
+  border-radius: 16px;
+  border: 2px dashed #dcdfe6;
+}
+.empty-emoji {
+  font-size: 64px;
+  margin-bottom: 12px;
+  animation: emoji-bounce 2s ease-in-out infinite;
+  display: inline-block;
+}
+@keyframes emoji-bounce {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-8px) rotate(-5deg); }
+}
+.cm-empty h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  background: linear-gradient(135deg, #303133, #409EFF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.cm-empty p {
+  margin: 0 0 20px;
+  color: #909399;
+  font-size: 14px;
+}
 .cm-post {
   background: #fff;
   border: 1px solid #ebeef5;

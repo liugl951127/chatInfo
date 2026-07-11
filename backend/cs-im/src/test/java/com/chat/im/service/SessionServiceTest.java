@@ -284,11 +284,12 @@ class SessionServiceTest {
         assertEquals(1, last7.get(3).getCount());   // S5
         assertEquals(45, last7.get(3).getAvgResponseSec());
         assertEquals(5.0, last7.get(3).getAvgCsat(), 0.01);
-        // 第 5 条 (i=4) 是 昨天
-        assertEquals(today.minusDays(1).toString(), last7.get(4).getDate());
-        assertEquals(1, last7.get(4).getCount());   // S4
-        // 第 6 条 (i=5) 是 5 天前, 0 个
-        assertEquals(0, last7.get(5).getCount());
+        // 第 5 条 (last7[4] = i=2, today-2) 是 2 天前, 0 个 (无 S4)
+        assertEquals(today.minusDays(2).toString(), last7.get(4).getDate());
+        assertEquals(0, last7.get(4).getCount());
+        // 第 6 条 (last7[5] = i=1, today-1) 是 1 天前 (S4)
+        assertEquals(today.minusDays(1).toString(), last7.get(5).getDate());
+        assertEquals(1, last7.get(5).getCount());   // S4
         // 第 7 条 (i=6) 是 今天
         assertEquals(today.toString(), last7.get(6).getDate());
         assertEquals(3, last7.get(6).getCount());   // S1+S2+S3

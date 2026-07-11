@@ -122,6 +122,28 @@ public class SessionService {
     }
 
     /**
+     * 创建会话 (异步场景: 调用方提供 uid, 不依赖 UserContext ThreadLocal).
+     * 用于事件监听器 (@Async) 等场景, 避免 ThreadLocal 失效导致 UserContext.userId() == null.
+     *
+     * @param uid      客户 user_id (调用方从 event/参数传入)
+     * @param skillTag 技能标签, 可空
+     * @param isBot    是否机器人
+     * @return 同 create()
+     */
+    public ApiResponse<ChatSession> createForUser(Long uid, String skillTag, boolean isBot) {
+        Long prevUid = UserContext.userId();
+        String prevRole = UserContext.role();
+        try {
+            // 临时设置 ThreadLocal, 让 create() 能用 UserContext.userId()
+            UserContext.set(uid, null, "CUSTOMER", null);
+            return create(skillTag, isBot);
+        } finally {
+            // 恢复 (实际上 @Async 线程会丢弃, 这里只是保险)
+            if (prevUid != null) UserContext.set(prevUid, null, prevRole, null);
+        }
+    }
+
+    /**
      * 创建会话核心方法 (支持机器人/人工两种模式).
      * ----------------------------------------------------------------------------
      * 算法 (伪代码):
@@ -649,8 +671,8 @@ public class SessionService {
         // 清 Redis 客户-会话映射 (bot 关闭)
         redis.delete(CommonConstants.REDIS_CUSTOMER_SESSION + customerId);
 
-        // step 3: 重新进人工队列 — 调内部 create(..., false) 走智能分配
-        ApiResponse<ChatSession> fresh = create(skillTag != null ? skillTag : old.getSkillTag(), false);
+        // step 3: 重新进人工队列 — 调 createForUser (用 event.customerId 避免 @Async ThreadLocal 失效)
+        ApiResponse<ChatSession> fresh = createForUser(customerId, skillTag != null ? skillTag : old.getSkillTag(), false);
         Long newId = fresh.getData() != null ? fresh.getData().getId() : null;
         auditLogService.log(customerId, "TRANSFER_BOT_TO_HUMAN", String.valueOf(oldSessionId),
                 "newSession=" + newId);

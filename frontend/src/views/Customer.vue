@@ -727,6 +727,46 @@ function subscribeSession(sid) {
 // ============ 子组件事件包装 ============
 function onPreviewImage(url) { previewImageUrl.value = url }
 function onRecall(id) { recall(id) }
+
+/**
+ * Markdown 互动按钮 (V3.1 智能问答).
+ * 处理 AI 回复中的按钮: 转人工 / 评分 / 快捷问题 / FAQ / 复制 / 链接
+ */
+function onMdAction(payload) {
+  if (!payload) return
+  switch (payload.type) {
+    case 'transfer':
+      // 转人工 (类似输入"人工"触发)
+      if (session.value) {
+        ElMessageBox.confirm('申请转人工客服?', '转人工', { type: 'question' })
+          .then(() => {
+            session.value && send('人工')
+          }).catch(() => {})
+      }
+      break
+    case 'rate':
+      ElMessage.success('感谢您的反馈 ⭐')
+      // 可调 rate API
+      break
+    case 'quick':
+      // 快捷问题: 插入输入框
+      draft.value = payload.label
+      // 自动 focus
+      nextTick(() => {
+        const el = document.querySelector('.composer .el-textarea__inner')
+        el?.focus()
+      })
+      break
+    case 'faq':
+      draft.value = payload.label
+      break
+    case 'action':
+      ElMessage.info(`操作: ${payload.label}`)
+      break
+    default:
+      ElMessage.info(`${payload.label || payload.type}`)
+  }
+}
 </script>
 
 <template>
@@ -880,7 +920,8 @@ function onRecall(id) { recall(id) }
                 :recalled-map="recalledMap"
                 :show-file="false"
                 @preview-image="onPreviewImage"
-                @recall="onRecall" />
+                @recall="onRecall"
+                @action="onMdAction" />
             </template>
           </MessageList>
 

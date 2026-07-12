@@ -1,0 +1,26 @@
+# V3 智能客服平台 - 浏览器目标
+# ----------------------------------------------------------------------------
+# 目标: 兼容现代浏览器 (Chrome 90+/Firefox 88+/Safari 14+/Edge 90+)
+# 不支持: IE 11 (Vue 3 不支持), Edge Legacy, 旧 Android WebView
+
+# 生产环境
+[production]
+> 0.5% in CN
+last 2 versions
+not dead
+not IE 11
+not op_mini all
+
+# 开发环境
+[development]
+last 1 chrome version
+last 1 firefox version
+last 1 safari version
+last 1 edge version
+
+# 测试环境
+[test]
+> 0.3% in CN
+last 2 versions
+not dead
+not IE 11

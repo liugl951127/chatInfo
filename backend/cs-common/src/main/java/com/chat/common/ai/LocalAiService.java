@@ -298,20 +298,33 @@ public class LocalAiService implements M3Capability {
         // 2) 规则匹配 (硬编码映射, 优先于 FAQ, 命中即返)
         switch (ires.intent()) {
             case TRANSFER_HUMAN:
-                // 用户说"人工"等 → 返转人工提示, action=transfer_to_human
-                return new Decision("好的, 正在为您转接人工客服, 请稍等...",
+                // 用户说"人工"等 → 转人工 (V3.1 markdown)
+                String tx = "好的, 正在为您转接人工客服 👨‍💼\n\n"
+                    + "### 预计等待时间\n\n"
+                    + "- 当前等候: **0** 人\n"
+                    + "- 预计接通: **< 30 秒**\n\n"
+                    + "您也可以 [button:rate:继续 AI 答疑]";
+                return new Decision(tx,
                         intent, "rule", "transfer_to_human", sres);
             case GOODBYE:
                 // 用户说"再见"等 → 返告别语, action=end_call (前端可关闭)
                 return new Decision("感谢您的咨询, 祝您生活愉快!",
                         intent, "rule", "end_call", sres);
             case COMPLAINT:
-                // 用户说"投诉"等 → 返升级到主管, action=transfer_to_human
-                return new Decision("非常抱歉给您带来不便, 我马上为您升级到主管处理",
+                // 用户说"投诉"等 → 升级主管 (V3.1 markdown 格式)
+                String comp = "### 非常抱歉给您带来不便 😔\n\n"
+                    + "我马上为您升级到主管处理.\n\n"
+                    + "[button:transfer:立即转主管]  [button:rate:⭐ 评分]";
+                return new Decision(comp,
                         intent, "rule", "transfer_to_human", sres);
             case THANKS:
-                // 用户说"谢谢"等 → 返不用客气
-                return new Decision("不客气! 还需要其他帮助吗?",
+                // 用户说"谢谢"等 → 返不用客气 (V3.1 markdown + 互动按钮)
+                String thanks = "不客气! 很高兴帮到您 😊\n\n"
+                    + "### 继续探索\n\n"
+                    + "- 查看 [更多功能](#)\n"
+                    + "- [button:rate:👍 满意] [button:rate:👎 不满意]\n"
+                    + "- [button:transfer:需要人工帮助]";
+                return new Decision(thanks,
                         intent, "rule", null, sres);
             default:
                 // 走 FAQ / 兜底
@@ -333,12 +346,25 @@ public class LocalAiService implements M3Capability {
         }
         String trimmed = text.trim();
         if (trimmed.endsWith("?") || trimmed.endsWith("？")) {
-            // 问句 → 建议看 FAQ / 转人工
-            return new Decision("这是个很好的问题, 建议您: 1) 看看常见问题; 2) 描述更具体些; 3) 或转人工客服",
+            // 问句 (V3.1 markdown + 互动按钮)
+            String q = "### 没理解您的问题 🤔\n\n"
+                + "**建议**:\n\n"
+                + "1. 换个更具体的说法\n"
+                + "2. 看看下方的常见问题\n"
+                + "3. 直接转人工客服\n\n"
+                + "### 常见问题 (一键提问)\n\n"
+                + "[button:quick:怎么退款]\n\n"
+                + "[button:quick:怎么查物流]\n\n"
+                + "[button:quick:支付失败怎么办]\n\n"
+                + "[button:transfer:转人工客服]";
+            return new Decision(q,
                     intent, "fallback", null, sres);
         }
-        // 普通兜底
-        return new Decision("抱歉没理解您的问题, 换个说法试试? 或回复【人工】转接客服",
+        // 普通兜底 (V3.1 markdown)
+        String f = "抱歉没理解您的问题 😅\n\n"
+            + "### 您可以试试\n\n"
+            + "[button:transfer:转人工客服]  [button:rate:👍]";
+        return new Decision(f,
                 intent, "fallback", null, sres);
     }
 

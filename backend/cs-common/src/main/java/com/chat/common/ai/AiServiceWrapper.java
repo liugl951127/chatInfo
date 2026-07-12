@@ -7,11 +7,12 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 /**
- * AiServiceWrapper - AI 服务统一入口 (V3.1 新增).
+ * AiServiceWrapper - AI 服务统一入口 (V3.1 增强).
  * ----------------------------------------------------------------------------
  * 包装 LocalAiService, 增加:
  *   - FAQ 自学习: 无答案时自动记录到候选池
  *   - 调用统计: 总调用次数 + 命中率
+ *   - Markdown 增强: 返 markdown 格式 + 互动按钮 (V3.2)
  *
  * 用法: 业务调用 aiServiceWrapper.chat(req), 而非直接 localAiService.chat
  */

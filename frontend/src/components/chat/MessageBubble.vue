@@ -25,6 +25,7 @@
 import { computed } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import { parseVoiceUrl, parseVoiceSeconds } from '@/composables/useVoiceMessage'
+import MarkdownRenderer from '@/components/chat/MarkdownRenderer.vue'
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -33,7 +34,15 @@ const props = defineProps({
   recalledMap: { type: Object, default: () => ({}) },
   showFile: { type: Boolean, default: true },  // Agent.vue 显示文件链接, Customer.vue 隐藏
 })
-const emit = defineEmits(['preview-image', 'recall'])
+const emit = defineEmits(['preview-image', 'recall', 'action'])
+
+/**
+ * Markdown 互动按钮事件.
+ * 把 markdown 中的 [button:...] 转给父组件, 由父组件处理.
+ */
+function onMdAction(payload) {
+  emit('action', { ...payload, messageId: props.item.id, senderRole: props.item.senderRole })
+}
 
 const isMine = computed(() => props.item.senderId === props.currentUserId)
 const isBot = computed(() => props.item.senderRole === 'BOT')
@@ -87,7 +96,10 @@ function roleLabel() {
         </div>
       </a>
 
-      <div v-else class="text">{{ item.content }}</div>
+      <MarkdownRenderer
+        v-else-if="item.content"
+        :content="item.content"
+        @action="onMdAction" />
 
       <div v-if="isMine && item.id && !isRecalled" class="msg-actions">
         <slot name="actions" :item="item">

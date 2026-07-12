@@ -41,6 +41,7 @@ import { StompClient } from '@/utils/ws-client'
 import MessageList from '@/components/chat/MessageList.vue'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
 import ChatComposer from '@/components/chat/ChatComposer.vue'
+import MarkdownEditor from '@/components/chat/MarkdownEditor.vue'
 import SmartReplySuggestions from '@/components/chat/SmartReplySuggestions.vue'
 import AgentDashboard from '@/components/dashboard/AgentDashboard.vue'
 import VideoCallDialog from '@/components/video/VideoCallDialog.vue'
@@ -82,6 +83,15 @@ const sessions = ref([])
 const current = ref(null)
 const messages = ref([])
 const draft = ref('')
+/**
+ * Markdown 模式开关 (V3.2 新增).
+ * 坐席端可切换普通/富文本编辑器.
+ */
+const markdownMode = ref(localStorage.getItem('agent_md_mode') !== 'false')
+function toggleMarkdownMode() {
+  markdownMode.value = !markdownMode.value
+  localStorage.setItem('agent_md_mode', String(markdownMode.value))
+}
 
 /** 最后一条客户消息 (供 SmartReplySuggestions 使用) */
 const lastCustomerText = computed(() => {
@@ -772,7 +782,30 @@ onBeforeUnmount(() => {
             </template>
           </MessageList>
 
+          <!-- 模式切换条 (V3.2) -->
+          <div class="mode-bar">
+            <el-radio-group v-model="markdownMode" size="small" @change="val => localStorage.setItem('agent_md_mode', String(val))">
+              <el-radio-button :value="false">📝 简洁</el-radio-button>
+              <el-radio-button :value="true">⚡ Markdown</el-radio-button>
+            </el-radio-group>
+            <el-tag v-if="markdownMode" size="small" type="success" effect="plain">
+              支持按钮/表单/进度条等富文本
+            </el-tag>
+            <span class="mode-hint" v-if="markdownMode">Ctrl+Enter 发送 · Tab 缩进</span>
+          </div>
+
+          <!-- Markdown 模式 (V3.2) -->
+          <MarkdownEditor
+            v-if="markdownMode"
+            v-model="draft"
+            :disabled="current.status === 'CLOSED'"
+            placeholder="回复客户... 支持 Markdown + 富文本 (Ctrl+Enter 发送)"
+            @send="send"
+            @change="onTyping" />
+
+          <!-- 简洁模式 -->
           <ChatComposer
+            v-else
             v-model="draft"
             :disabled="current.status === 'CLOSED'"
             image-accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv"

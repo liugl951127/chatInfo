@@ -1,127 +1,36 @@
 <script setup>
 /**
- * MarkdownRenderer.vue - Markdown 渲染器 + 嵌套互动按钮.
+ * MarkdownRenderer.vue - Markdown 渲染器 (V3.1 后端渲染版).
  * ----------------------------------------------------------------------------
- * 功能:
- *   - 渲染 markdown 为 HTML (markdown-it)
- *   - 在 markdown 中识别 [button:type:label:payload] 语法
- *   - 自动把按钮占位符替换为可交互按钮
- *   - emit action 事件 (transfer / rate / quick / faq / link / copy)
+ * V3.1 关键变更: 后端 MarkdownService 生成 HTML, 前端只 v-html.
+ *   - 移除 markdown-it 依赖 (减重 ~50KB)
+ *   - 移除客户端解析 (XSS 防护更彻底)
+ *   - 按钮点击统一通过 onMdContainerClick 处理
  *
- * 用法:
- *   <MarkdownRenderer :content="msg.content" @action="onAction" />
+ * 协议:
+ *   后端 MarkdownService 把 [button:type:label:payload] 转成:
+ *     <button class="md-btn md-btn-{type}" data-type="..." data-label="..." data-payload="...">label</button>
  *
- * 按钮类型 (V3 业务):
- *   - transfer: 转人工
- *   - rate:     评分 (👍/👎/⭐1-5)
- *   - quick:    快捷问题 (插入输入框)
- *   - faq:      FAQ 跳转
- *   - copy:     复制内容
- *   - link:     外部链接
- *   - action:   通用操作 (payload 为 label)
+ * 客户端:
+ *   - v-html 渲染 HTML
+ *   - @click 捕获点击, 通过 composable 派发到父组件
  */
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { renderMarkdown, isMarkdown } from '@/composables/useMarkdown'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { onMdContainerClick, isMarkdownHtml } from '@/composables/useMarkdown'
 
 const props = defineProps({
-  content: { type: String, required: true },
-  enableButtons: { type: Boolean, default: true },
+  content: { type: String, required: true },      // 后端返的 HTML
+  markdown: { type: String, default: '' },         // 原始 markdown (可选, 用于复制)
 })
 const emit = defineEmits(['action'])
 
-// 渲染结果 (HTML + 按钮列表)
-const parsed = computed(() => {
-  if (!isMarkdown(props.content)) {
-    // 纯文本: 转义后直接显示
-    return {
-      html: `<p class="md-text">${escapeHtml(props.content)}</p>`,
-      buttons: [],
-      isMd: false,
-    }
-  }
-  return { ...renderMarkdown(props.content), isMd: true }
-})
-
-function escapeHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+// 点击事件代理
+function onClick(evt) {
+  onMdContainerClick(evt, payload => emit('action', payload))
 }
-
-// 渲染后, 把 <button data-md-btn-idx> 替换为真按钮
-const containerRef = ref(null)
-
-function renderButtons() {
-  const root = containerRef.value
-  if (!root) return
-  const placeholders = root.querySelectorAll('[data-md-btn-idx]')
-  placeholders.forEach((el) => {
-    const idx = parseInt(el.getAttribute('data-md-btn-idx'), 10)
-    const btn = parsed.value.buttons[idx]
-    if (!btn) return
-    el.replaceWith(createButton(btn))
-  })
-}
-
-function createButton(btn) {
-  const el = document.createElement('button')
-  el.className = 'md-btn md-btn-' + btn.type
-  el.textContent = btn.label
-  el.onclick = () => handleAction(btn)
-  return el
-}
-
-async function handleAction(btn) {
-  const { type, label, payload } = btn
-  switch (type) {
-    case 'transfer':
-      emit('action', { type: 'transfer', label, payload })
-      break
-    case 'rate':
-      emit('action', { type: 'rate', label, payload })
-      break
-    case 'quick':
-      // 快捷问题: 插入输入框 + 自动发送
-      emit('action', { type: 'quick', label, payload })
-      break
-    case 'faq':
-      emit('action', { type: 'faq', label, payload })
-      break
-    case 'copy':
-      try {
-        await navigator.clipboard.writeText(payload)
-        ElMessage.success('已复制')
-      } catch (e) {
-        ElMessage.warning('复制失败 (浏览器不支持)')
-      }
-      break
-    case 'link':
-      // 防止 XSS, 校验 url
-      if (/^https?:\/\//i.test(payload)) {
-        window.open(payload, '_blank', 'noopener')
-      } else {
-        ElMessage.warning('仅支持 http(s) 链接')
-      }
-      break
-    case 'action':
-      emit('action', { type: 'action', label, payload })
-      break
-    default:
-      emit('action', { type, label, payload })
-  }
-}
-
-watch(() => props.content, async () => {
-  await nextTick()
-  renderButtons()
-})
-onMounted(async () => {
-  await nextTick()
-  renderButtons()
-})
 </script>
 
 <template>
-  <div ref="containerRef" class="md-content" :class="{ 'is-md': parsed.isMd }" v-html="parsed.html" />
+  <div class="md-content" :class="{ 'is-md': isMarkdownHtml(content) }" v-html="content" @click="onClick" />
 </template>
 
 <style scoped>
@@ -152,25 +61,26 @@ onMounted(async () => {
   font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
   font-size: 13px;
   margin: 8px 0;
+  white-space: pre;
 }
 .md-content :deep(.md-code code) {
   background: transparent;
   color: inherit;
   padding: 0;
 }
-.md-content :deep(.md-text) { margin: 0; }
-.md-content :deep(table) {
+.md-content :deep(.md-table) {
   border-collapse: collapse;
   margin: 8px 0;
   font-size: 13px;
+  width: 100%;
 }
-.md-content :deep(table th),
-.md-content :deep(table td) {
+.md-content :deep(.md-table th),
+.md-content :deep(.md-table td) {
   border: 1px solid #ebeef5;
   padding: 6px 12px;
   text-align: left;
 }
-.md-content :deep(table th) {
+.md-content :deep(.md-table th) {
   background: #fafafa;
   font-weight: 600;
 }
@@ -179,8 +89,22 @@ onMounted(async () => {
   border-radius: 4px;
   margin: 4px 0;
 }
+.md-content :deep(hr) {
+  border: none;
+  border-top: 1px solid #ebeef5;
+  margin: 12px 0;
+}
+.md-content :deep(code) {
+  background: #f5f7fa;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: 'Monaco', 'Consolas', monospace;
+}
+.md-content :deep(strong) { font-weight: 700; }
+.md-content :deep(em) { font-style: italic; }
 
-/* 互动按钮 */
+/* 互动按钮 (V3.1 7 种) */
 .md-content :deep(.md-btn) {
   display: inline-block;
   margin: 4px 6px 4px 0;

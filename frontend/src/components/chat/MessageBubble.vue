@@ -97,8 +97,9 @@ function roleLabel() {
       </a>
 
       <MarkdownRenderer
-        v-else-if="item.content"
-        :content="item.content"
+        v-else-if="item.contentHtml || item.content"
+        :content="item.contentHtml || item.content"
+        :markdown="item.contentMarkdown || item.content"
         @action="onMdAction" />
 
       <div v-if="isMine && item.id && !isRecalled" class="msg-actions">

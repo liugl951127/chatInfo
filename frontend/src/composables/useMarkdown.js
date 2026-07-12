@@ -1,98 +1,79 @@
 /**
- * useMarkdown.js - Markdown 渲染 composable.
+ * useMarkdown.js - Markdown 渲染辅助 (V3.1 后端渲染).
  * ----------------------------------------------------------------------------
- * 基于 markdown-it, 支持:
- *   - 标准 markdown: 标题/列表/代码/粗体/链接/图片/表格/引用
- *   - 代码高亮 (highlight.js)
- *   - 互动按钮: [button:type:label:payload] 语法
- *   - 复制代码: 自动渲染
+ * V3.1 关键变更: Markdown 由后端生成 HTML, 前端只:
+ *   1) 判别是否需要 markdown 渲染 (用 \`isHtml\` 启发)
+ *   2) 处理按钮点击 (data-type data-label data-payload)
+ *   3) XSS 防护: 仅信任后端 HTML, 不在前端解析
  *
- * 按钮语法 (V3 扩展):
- *   [button:transfer:转人工]           → 转人工按钮
- *   [button:rate:👍]                  → 评分按钮
- *   [button:quick:查看订单状态]        → 快捷问题按钮
- *   [button:faq:如何退款]              → FAQ 跳转
- *   [button:copy:复制代码:code]        → 复制代码按钮
- *   [button:link:查看详情:https://...]  → 链接按钮
- *   [button:action:查看]               → 通用 action (emit)
- *
- * 渲染产出: HTML 字符串 + 元数据 (button 列表)
+ * 不再依赖 markdown-it (减重 ~50KB).
  */
-import MarkdownIt from 'markdown-it'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
-// 单例
-let mdInstance = null
+/**
+ * 处理 markdown 容器内按钮的点击事件.
+ * @param evt DOM Event
+ * @param emitter Vue emit 事件 (action)
+ */
+export function onMdContainerClick(evt, emitter) {
+  const btn = evt.target.closest && evt.target.closest('.md-btn')
+  if (!btn) return
+  const type = btn.dataset.type || 'action'
+  const label = btn.dataset.label || btn.textContent
+  const payload = btn.dataset.payload || ''
+  handleAction(type, label, payload, emitter)
+}
 
-function getMd() {
-  if (mdInstance) return mdInstance
-  mdInstance = new MarkdownIt({
-    html: false,        // 禁止原始 HTML (防 XSS)
-    linkify: true,      // 自动识别 URL
-    typographer: true,  // 智能引号
-    breaks: true,       // \n 换行
-    highlight: (str, lang) => {
-      // V3 简化: 不集成 highlight.js (体积 +30KB), 用纯 CSS 着色
-      // 真实项目可换 highlight.js
-      if (lang) {
-        return `<pre class="md-code"><code class="language-${lang}">${escapeHtml(str)}</code></pre>`
+async function handleAction(type, label, payload, emitter) {
+  switch (type) {
+    case 'transfer':
+      if (typeof emitter === 'function') {
+        emitter({ type: 'transfer', label, payload })
       }
-      return `<pre class="md-code"><code>${escapeHtml(str)}</code></pre>`
-    }
-  })
-  return mdInstance
-}
-
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-/**
- * 提取 markdown 中的 button 标记, 转 HTML 占位符.
- * 业务: 渲染时把 [button:...] 转成 <span data-md-btn="...">, 由组件渲染为真按钮.
- */
-function processButtons(text) {
-  const buttons = []
-  // 匹配: [button:type:label:payload] 或 [button:type:label]
-  const re = /\[button:([a-z]+)(?::([^\]:]+))?(?::([^\]]+))?\]/g
-  const replaced = text.replace(re, (m, type, label, payload) => {
-    const idx = buttons.length
-    buttons.push({ type, label: label || '操作', payload: payload || '' })
-    return `\n<button data-md-btn-idx="${idx}"></button>\n`
-  })
-  return { text: replaced, buttons }
-}
-
-/**
- * 渲染 markdown 文本为 HTML + 按钮元数据.
- * @param text markdown 文本
- * @returns { html: string, buttons: Array<{type, label, payload}> }
- */
-export function renderMarkdown(text) {
-  if (!text) return { html: '', buttons: [] }
-  const { text: processed, buttons } = processButtons(String(text))
-  const html = getMd().render(processed)
-  return { html, buttons }
+      break
+    case 'rate':
+      ElMessage.success('感谢您的反馈 ⭐')
+      if (typeof emitter === 'function') {
+        emitter({ type: 'rate', label, payload })
+      }
+      break
+    case 'quick':
+    case 'faq':
+      if (typeof emitter === 'function') {
+        emitter({ type, label, payload })
+      }
+      break
+    case 'copy':
+      try {
+        await navigator.clipboard.writeText(payload)
+        ElMessage.success('已复制')
+      } catch (e) {
+        ElMessage.warning('复制失败 (浏览器不支持)')
+      }
+      break
+    case 'link':
+      if (/^https?:\/\//i.test(payload)) {
+        window.open(payload, '_blank', 'noopener')
+      } else {
+        ElMessage.warning('仅支持 http(s) 链接')
+      }
+      break
+    case 'action':
+    default:
+      if (typeof emitter === 'function') {
+        emitter({ type, label, payload })
+      } else {
+        ElMessage.info(`操作: ${label}`)
+      }
+  }
 }
 
 /**
- * 简洁版: 只返 HTML 字符串 (无按钮).
+ * 检测是否需要 markdown 渲染 (后端已经返 html, 这里只判别).
  */
-export function renderMarkdownHtml(text) {
-  return renderMarkdown(text).html
+export function isMarkdownHtml(html) {
+  if (!html) return false
+  return /<h\d|<p>|<ul>|<ol>|<pre class="md-code|<blockquote|<table class="md-table|class="md-btn /.test(html)
 }
 
-/**
- * 检测文本是否含 markdown 标记.
- */
-export function isMarkdown(text) {
-  if (!text) return false
-  // 简单启发: # / * / - / ` / [ / > / 数字. / ``` / | 之一 + 至少 2 个连续内容
-  return /[#*`>\-\[\d]+\s|```|\[button:/.test(text) && text.length > 5
-}
-
-export default { renderMarkdown, renderMarkdownHtml, isMarkdown }
+export default { onMdContainerClick, isMarkdownHtml }

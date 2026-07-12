@@ -11,7 +11,8 @@ import java.util.List;
  * SmartQaResponse - 智能问答响应 (V3.1 增强).
  * ----------------------------------------------------------------------------
  * 字段:
- *   - content:   AI 回复内容 (Markdown 格式, 含 [button:...] 互动按钮)
+ *   - contentHtml:     AI 回复的 HTML (后端渲染, 前端 v-html 即可, 主字段)
+ *   - contentMarkdown: AI 回复的 Markdown 原文 (备字段, 用于复制/编辑)
  *   - intent:    命中的意图
  *   - confidence: 置信度 0-1
  *   - source:    来源 (rule / faq / fallback)
@@ -25,7 +26,8 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SmartQaResponse {
-    private String content;
+    private String contentHtml;     // 后端渲染好的 HTML (主)
+    private String contentMarkdown;  // 原始 markdown (备)
     private String intent;
     private Double confidence;
     private String source;

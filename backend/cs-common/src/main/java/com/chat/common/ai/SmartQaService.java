@@ -2,6 +2,7 @@ package com.chat.common.ai;
 
 import com.chat.common.ai.dto.SmartQaRequest;
 import com.chat.common.ai.dto.SmartQaResponse;
+import com.chat.common.markdown.MarkdownService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ public class SmartQaService {
     );
 
     private final LocalAiService localAi;
+    private final MarkdownService markdown;
 
     /**
      * 智能问答主入口.
@@ -96,8 +98,13 @@ public class SmartQaService {
             }
         }
 
+        // 6) 后端渲染 markdown → HTML (V3.1 关键: 后端生成, 前端只 v-html)
+        String md = resp.getContent();
+        String html = markdown.render(md);
+
         return SmartQaResponse.builder()
-            .content(resp.getContent())
+            .contentMarkdown(md)
+            .contentHtml(html)
             .intent(intent)
             .confidence(confidence)
             .source("local-ai")

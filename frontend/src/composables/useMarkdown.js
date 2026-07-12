@@ -1,19 +1,18 @@
 /**
- * useMarkdown.js - Markdown 渲染辅助 (V3.1 后端渲染).
+ * useMarkdown.js - Markdown 渲染辅助 (V3.2 富交互增强).
  * ----------------------------------------------------------------------------
- * V3.1 关键变更: Markdown 由后端生成 HTML, 前端只:
- *   1) 判别是否需要 markdown 渲染 (用 \`isHtml\` 启发)
- *   2) 处理按钮点击 (data-type data-label data-payload)
- *   3) XSS 防护: 仅信任后端 HTML, 不在前端解析
+ * V3.2 增强: Markdown 由后端渲染 HTML, 前端只处理:
+ *   1) 按钮点击 (data-type data-label data-payload)
+ *   2) 表单收集 (input/select/radio/checkbox/textarea)
+ *   3) 图标自动识别
+ *   4) 折叠面板原生 <details>
  *
- * 不再依赖 markdown-it (减重 ~50KB).
+ * 不依赖任何 markdown 库 (后端已渲染).
  */
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 /**
- * 处理 markdown 容器内按钮的点击事件.
- * @param evt DOM Event
- * @param emitter Vue emit 事件 (action)
+ * 处理 markdown 容器内按钮的点击.
  */
 export function onMdContainerClick(evt, emitter) {
   const btn = evt.target.closest && evt.target.closest('.md-btn')
@@ -22,6 +21,46 @@ export function onMdContainerClick(evt, emitter) {
   const label = btn.dataset.label || btn.textContent
   const payload = btn.dataset.payload || ''
   handleAction(type, label, payload, emitter)
+}
+
+/**
+ * 处理表单提交 - 收集容器内所有表单值.
+ * @param evt submit event
+ * @param formName 表单名 (data-form-name)
+ * @returns 收集到的数据对象
+ */
+export function collectForm(containerEl) {
+  if (!containerEl) return {}
+  const data = {}
+  // input
+  containerEl.querySelectorAll('.md-input, .md-textarea').forEach(el => {
+    const name = el.dataset.name || el.name
+    if (name) data[name] = el.value
+  })
+  // select
+  containerEl.querySelectorAll('.md-select').forEach(el => {
+    const name = el.dataset.name || el.name
+    if (name) data[name] = el.value
+  })
+  // radio
+  const radioGroups = {}
+  containerEl.querySelectorAll('.md-radios').forEach(group => {
+    const name = group.dataset.name
+    if (!name) return
+    const checked = group.querySelector('input[type=radio]:checked')
+    data[name] = checked ? checked.value : null
+    radioGroups[name] = true
+  })
+  // checkbox
+  const checkGroups = {}
+  containerEl.querySelectorAll('.md-checkboxes').forEach(group => {
+    const name = group.dataset.name
+    if (!name) return
+    const checked = group.querySelectorAll('input[type=checkbox]:checked')
+    data[name] = Array.from(checked).map(c => c.value)
+    checkGroups[name] = true
+  })
+  return data
 }
 
 async function handleAction(type, label, payload, emitter) {
@@ -37,27 +76,16 @@ async function handleAction(type, label, payload, emitter) {
         emitter({ type: 'rate', label, payload })
       }
       break
+    case 'submit':
+      // 表单提交
+      if (typeof emitter === 'function') {
+        const container = emitter.containerEl
+        const formData = collectForm(container)
+        emitter({ type: 'submit', label, payload, formData })
+      }
+      break
     case 'quick':
     case 'faq':
-      if (typeof emitter === 'function') {
-        emitter({ type, label, payload })
-      }
-      break
-    case 'copy':
-      try {
-        await navigator.clipboard.writeText(payload)
-        ElMessage.success('已复制')
-      } catch (e) {
-        ElMessage.warning('复制失败 (浏览器不支持)')
-      }
-      break
-    case 'link':
-      if (/^https?:\/\//i.test(payload)) {
-        window.open(payload, '_blank', 'noopener')
-      } else {
-        ElMessage.warning('仅支持 http(s) 链接')
-      }
-      break
     case 'action':
     default:
       if (typeof emitter === 'function') {
@@ -65,6 +93,7 @@ async function handleAction(type, label, payload, emitter) {
       } else {
         ElMessage.info(`操作: ${label}`)
       }
+      break
   }
 }
 
@@ -73,7 +102,7 @@ async function handleAction(type, label, payload, emitter) {
  */
 export function isMarkdownHtml(html) {
   if (!html) return false
-  return /<h\d|<p>|<ul>|<ol>|<pre class="md-code|<blockquote|<table class="md-table|class="md-btn /.test(html)
+  return /<h\d|<p>|<ul>|<ol>|<pre class="md-code|<blockquote|<table class="md-table|class="md-btn |class="md-icon|class="md-badge|class="md-alert|class="md-card|class="md-progress|class="md-input|class="md-select|class="md-stat|class="md-collapse/.test(html)
 }
 
-export default { onMdContainerClick, isMarkdownHtml }
+export default { onMdContainerClick, collectForm, isMarkdownHtml }

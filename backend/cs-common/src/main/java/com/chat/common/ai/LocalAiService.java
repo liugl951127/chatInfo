@@ -345,25 +345,36 @@ public class LocalAiService implements M3Capability {
                     intent, "fallback", "transfer_to_human", sres);
         }
         String trimmed = text.trim();
+        // V3.2 富文本演示: 检测特定关键词, 返富文本示例
+        if (trimmed.contains("订单") && (trimmed.contains("详情") || trimmed.contains("查"))) {
+            return new Decision(renderOrderDetail(), intent, "rule", null, sres);
+        }
+        if (trimmed.contains("评价") || trimmed.contains("评分") || trimmed.contains("反馈")) {
+            return new Decision(renderFeedbackForm(), intent, "rule", null, sres);
+        }
+        if (trimmed.contains("帮助") || trimmed.contains("help") || trimmed.equalsIgnoreCase("?")) {
+            return new Decision(renderHelpCenter(), intent, "rule", null, sres);
+        }
         if (trimmed.endsWith("?") || trimmed.endsWith("？")) {
-            // 问句 (V3.1 markdown + 互动按钮)
-            String q = "### 没理解您的问题 🤔\n\n"
+            // 问句 (V3.2 富文本)
+            String q = "### [icon:🤔] 没理解您的问题\n\n"
+                + "[alert:info:小贴士|您可以尝试下面任意一种方式提问]\n\n"
                 + "**建议**:\n\n"
                 + "1. 换个更具体的说法\n"
                 + "2. 看看下方的常见问题\n"
                 + "3. 直接转人工客服\n\n"
-                + "### 常见问题 (一键提问)\n\n"
-                + "[button:quick:怎么退款]\n\n"
-                + "[button:quick:怎么查物流]\n\n"
-                + "[button:quick:支付失败怎么办]\n\n"
-                + "[button:transfer:转人工客服]";
+                + "### [icon:💡] 常见问题 (一键提问)\n\n"
+                + "[btn:quick:怎么退款]\n\n"
+                + "[btn:quick:怎么查物流]\n\n"
+                + "[btn:quick:支付失败怎么办]\n\n"
+                + "### [icon:👥] 需要更多帮助?\n\n"
+                + "[btn:transfer:转人工客服]  [btn:link:帮助中心:https://example.com/help]";
             return new Decision(q,
                     intent, "fallback", null, sres);
         }
-        // 普通兜底 (V3.1 markdown)
-        String f = "抱歉没理解您的问题 😅\n\n"
-            + "### 您可以试试\n\n"
-            + "[button:transfer:转人工客服]  [button:rate:👍]";
+        // 普通兜底 (V3.2 富文本)
+        String f = "[icon:👋] 抱歉没理解您的问题\n\n"
+            + "[btn:transfer:转人工客服]  [btn:rate:👍]  [btn:link:帮助中心:https://example.com/help]";
         return new Decision(f,
                 intent, "fallback", null, sres);
     }
@@ -384,4 +395,69 @@ public class LocalAiService implements M3Capability {
             String action,
             SentimentAnalyzer.Result sentiment
     ) {}
+
+    // ============= V3.2 富文本演示模板 =============
+
+    /**
+     * 演示 1: 订单详情 (含表格/徽章/进度条/按钮).
+     */
+    private String renderOrderDetail() {
+        return "[icon:📦] 订单详情 [badge:success:已发货] [badge:primary:VIP]\n\n"
+             + "[alert:success:物流中|您的订单正在配送中, 预计 24 小时内送达]\n\n"
+             + "### 订单信息\n\n"
+             + "| 商品 | 数量 | 单价 |\n"
+             + "| --- | --- | --- |\n"
+             + "| iPhone 15 Pro | 1 | ¥8999 |\n"
+             + "| AirPods Pro | 1 | ¥1899 |\n\n"
+             + "### 物流进度\n\n"
+             + "[progress:75]\n\n"
+             + "[icon:🚚] 已揽收 → [icon:📦] 已发出 → [icon:🚛] 运输中 → [icon:🏠] 派送中\n\n"
+             + "### 订单统计\n\n"
+             + "[stat:总价:¥10898|+5%] [stat:已付:¥10898] [stat:优惠:¥200|-10%]\n\n"
+             + "### 操作\n\n"
+             + "[btn:primary:确认收货] [btn:success:查看物流] "
+             + "[btn:warning:申请退货] [btn:danger:取消订单] "
+             + "[btn:default:暂不处理]\n\n"
+             + "[quote:客服小贴士|请在签收后 7 天内确认, 否则系统将自动确认收货]";
+    }
+
+    /**
+     * 演示 2: 评价表单 (含单选/复选/文本域/提交按钮).
+     */
+    private String renderFeedbackForm() {
+        return "[icon:⭐] 服务评价 [badge:warning:匿名]\n\n"
+             + "[alert:info:感谢|您宝贵的反馈是我们改进的动力]\n\n"
+             + "### 整体满意度\n\n"
+             + "[radio:rating:请评分:5=非常满意|4=满意|3=一般|2=不满意|1=非常不满意]\n\n"
+             + "### 哪些方面做得好? (可多选)\n\n"
+             + "[checkbox:good:优秀项:attitude=服务态度|skill=专业能力|speed=响应速度|patience=耐心细致]\n\n"
+             + "### 需要改进的地方\n\n"
+             + "[checkbox:bad:待改进项:wait=等待时间长|skill=解答不专业|attitude=态度差|other=其他]\n\n"
+             + "### 详细说明\n\n"
+             + "[textarea:detail:请填写您的宝贵建议:非常满意, 客服小王很专业]\n\n"
+             + "### 是否愿意推荐给他人?\n\n"
+             + "[radio:nps:推荐意愿:10=非常愿意|7-9=愿意|4-6=一般|0-3=不愿意]\n\n"
+             + "### 操作\n\n"
+             + "[btn:primary:提交评价] [btn:default:稍后再说] [btn:link:查看评价指南:https://example.com]";
+    }
+
+    /**
+     * 演示 3: 帮助中心 (含折叠面板/数据统计/标签).
+     */
+    private String renderHelpCenter() {
+        return "[icon:📚] 帮助中心 [tag:新] [tag:热门]\n\n"
+             + "### [icon:🔥] 今日数据\n\n"
+             + "[stat:浏览量:12893|+15%] [stat:解决问题:8956|+8%] "
+             + "[stat:好评率:96.5%|+0.5%] [stat:响应时间:< 30s|-10%]\n\n"
+             + "### [icon:📖] 常见问题 (点击展开)\n\n"
+             + "[collapse:如何注册账号?|访问官网, 点击注册, 填写手机号和验证码即可]\n\n"
+             + "[collapse:如何修改密码?|进入个人中心 → 账户安全 → 修改密码]\n\n"
+             + "[collapse:如何申请退款?|订单详情页 → 申请退款 → 填写原因 → 提交审核]\n\n"
+             + "[collapse:如何联系人工?|在线客服: 工作日 9:00-18:00 | 热线: 400-xxx-xxxx]\n\n"
+             + "### [icon:💬] 快捷入口\n\n"
+             + "[btn:primary:在线客服] [btn:success:电话咨询] "
+             + "[btn:warning:邮件反馈] [btn:link:官网帮助:https://example.com/help]\n\n"
+             + "[divider]\n\n"
+             + "[quote:系统提示|遇到问题可先查看帮助文档, 大部分问题 1 分钟内可自助解决]";
+    }
 }

@@ -34,7 +34,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import { Menu, Goblet, ChatLineRound, Bell, User, DataAnalysis, VideoCamera} from '@element-plus/icons-vue'
+import { Menu, Goblet, ChatLineRound, Bell, User, DataAnalysis, VideoCamera, Search, Monitor } from '@element-plus/icons-vue'
 import { imApi } from '@/api/im'
 import { useUserStore } from '@/stores/user'
 import { StompClient } from '@/utils/ws-client'

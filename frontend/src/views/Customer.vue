@@ -194,9 +194,9 @@ const messages = ref([])
  *   - 发送成功后, 清空草稿
  * 场景: 客户输入到一半切换会话 / 刷新页面, 内容不丢
  */
+const draft = ref('')
 const draftSessionKey = computed(() => `customer-${session.value?.id || 'new'}`)
 const draftDraft = useDraft(draftSessionKey, () => draft.value)
-const draft = ref('')
 const connected = ref(false)
 const reconnecting = ref(false)
 const peerTyping = ref('')

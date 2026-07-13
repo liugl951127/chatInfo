@@ -56,9 +56,10 @@ public class AiServiceWrapper {
 
     /**
      * 情感分析.
+     * 直接用 SentimentAnalyzer (V3.1 准确率 +20%, 90 词)
      */
     public SentimentAnalyzer.Result analyzeSentiment(String text) {
-        return localAi.analyzeSentiment(text);
+        return new SentimentAnalyzer().analyze(text);
     }
 
     /**

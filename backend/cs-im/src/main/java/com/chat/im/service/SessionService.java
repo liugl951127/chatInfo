@@ -549,8 +549,9 @@ public class SessionService {
      * 我的会话列表 (V3.1 分页版本).
      * @param page 页码 (1-based, 默认 1)
      * @param size 每页大小 (默认 20, 上限 100)
+     * @return PageResponse&lt;SessionView&gt; 含分页信息
      */
-    public ApiResponse<List<com.chat.im.dto.SessionView>> mySessions(int page, int size) {
+    public ApiResponse<com.chat.common.api.PageResponse<com.chat.im.dto.SessionView>> mySessions(int page, int size) {
         Long uid = UserContext.userId();
         String role = UserContext.role();
         if (uid == null) return ApiResponse.fail(401, "未登录");

@@ -1,8 +1,6 @@
 package com.chat.common.markdown.controller;
 
 import com.chat.common.markdown.MarkdownService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,7 +18,6 @@ import java.util.Map;
  *   - POST /api/md/render  { markdown: "..." } → { html: "...", size: 1234 }
  *   - POST /api/md/preview { markdown: "..." } → { html: "..." }  (同 render, 语义清晰)
  */
-@Tag(name = "Markdown 渲染")
 @RestController
 @RequestMapping("/api/md")
 @RequiredArgsConstructor
@@ -28,7 +25,9 @@ public class MarkdownController {
 
     private final MarkdownService markdown;
 
-    @Operation(summary = "Markdown → HTML 渲染")
+    /**
+     * Markdown → HTML 渲染.
+     */
     @PostMapping("/render")
     public Map<String, Object> render(@RequestBody Map<String, String> body) {
         String md = body.getOrDefault("markdown", "");
@@ -42,7 +41,9 @@ public class MarkdownController {
         return out;
     }
 
-    @Operation(summary = "Markdown 预览 (同 render)")
+    /**
+     * Markdown 预览 (同 render).
+     */
     @PostMapping("/preview")
     public Map<String, Object> preview(@RequestBody Map<String, String> body) {
         return render(body);

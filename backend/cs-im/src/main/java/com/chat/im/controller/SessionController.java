@@ -83,7 +83,7 @@ public class SessionController {
 
     @Operation(summary = "我的会话列表 (支持分页)")
     @GetMapping("/mine")
-    public ApiResponse<List<com.chat.im.dto.SessionView>> mine(
+    public ApiResponse<com.chat.common.api.PageResponse<com.chat.im.dto.SessionView>> mine(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         if (size > 100) size = 100;  // 限上限

@@ -33,18 +33,24 @@ public class PerformanceReport {
     public ApiResponse<Map<String, Object>> summary() {
         Map<String, Object> result = new LinkedHashMap<>();
         Map<String, Object> endpoints = new LinkedHashMap<>();
-        // 遍历所有 Timer (按 tag.endpoint 聚合)
-        for (Timer t : registry.getTimers()) {
-            String endpoint = t.getId().getTag("endpoint");
-            if (endpoint == null) continue;
-            Map<String, Object> stats = new LinkedHashMap<>();
-            stats.put("count", t.count());
-            stats.put("avg_ms", Math.round(t.mean(java.util.concurrent.TimeUnit.MILLISECONDS)));
-            for (double p : t.takeSnapshot().percentileValues()) {
-                stats.put("p" + (int) (p.percentile() * 100) + "_ms", Math.round(p.value(java.util.concurrent.TimeUnit.MILLISECONDS)));
-            }
-            endpoints.put(endpoint, stats);
-        }
+        // 遍历所有 Timer (按 tag.endpoint 聚合) - Micrometer 1.12+ API
+        registry.getMeters().stream()
+            .filter(m -> m instanceof Timer)
+            .map(m -> (Timer) m)
+            .forEach(t -> {
+                String endpoint = t.getId().getTag("endpoint");
+                if (endpoint == null) return;
+                Map<String, Object> stats = new LinkedHashMap<>();
+                stats.put("count", t.count());
+                stats.put("avg_ms", Math.round(t.mean(java.util.concurrent.TimeUnit.MILLISECONDS)));
+                // 使用 snapshot 的 percentiles (Micrometer 1.12+)
+                var snap = t.takeSnapshot();
+                for (var pv : snap.percentileValues()) {
+                    stats.put("p" + (int) pv.percentile() + "_ms", 
+                              Math.round(pv.value(java.util.concurrent.TimeUnit.MILLISECONDS)));
+                }
+                endpoints.put(endpoint, stats);
+            });
         result.put("endpoints", endpoints);
         result.put("uptime_sec", (System.currentTimeMillis() - getStartTime()) / 1000);
         return ApiResponse.ok(result);

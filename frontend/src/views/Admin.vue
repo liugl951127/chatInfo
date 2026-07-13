@@ -10,7 +10,7 @@
  *   - 告警通道配置
  */
 import { ref, onMounted } from 'vue'
-import { http } from '@/api/axios'
+import http from '@/api/axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import FaqCandidatePool from '@/components/admin/FaqCandidatePool.vue'
 
@@ -108,7 +108,10 @@ const rateLimitRules = [
   { endpoint: '/auth/register', permits: 3, window: 3600, status: '启用' },
   { endpoint: '/api/im/session/*/message', permits: 30, window: 60, status: '启用' },
   { endpoint: '/api/im/session/*/rate', permits: 10, window: 3600, status: '启用' },
+]
 
+
+</script>
 
 <style scoped>
 .admin-shell { padding: 16px; min-height: 100vh; background: #f5f7fa; }

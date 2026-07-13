@@ -5,7 +5,7 @@
  */
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { http } from '@/api/axios'
+import http from '@/api/axios'
 
 const candidates = ref([])
 const loading = ref(false)

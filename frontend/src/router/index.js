@@ -7,7 +7,8 @@ const routes = [
   { path: '/agent', component: () => import('@/views/Agent.vue'), meta: { auth: true, role: 'AGENT' } },
   { path: '/community', component: () => import('@/views/Community.vue'), meta: { auth: true } },
   { path: '/replay/:sessionId', component: () => import('@/views/Replay.vue'), meta: { auth: true } },
-  { path: '/monitor', component: () => import('@/views/RealtimeMonitor.vue'), meta: { auth: true, role: 'AGENT' } }
+  { path: '/monitor', component: () => import('@/views/RealtimeMonitor.vue'), meta: { auth: true, role: 'AGENT' } },
+  { path: '/admin', component: () => import('@/views/Admin.vue'), meta: { auth: true, role: 'AGENT' } }
 ]
 
 const router = createRouter({

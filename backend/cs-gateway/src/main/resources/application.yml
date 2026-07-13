@@ -17,15 +17,48 @@ spring:
         locator:
           enabled: false
       routes:
+        # V3.2: 完整路由表 (全部微服务)
         - id: cs-auth
-          uri: http://localhost:9001
+          uri: http://localhost:8094
           predicates:
             - Path=/auth/**
         - id: cs-im
           uri: http://localhost:9002
           predicates:
             - Path=/api/im/**
-        # 允许 WebSocket 握手
+        - id: cs-cdp
+          uri: http://localhost:9006
+          predicates:
+            - Path=/api/cdp/**
+        - id: cs-community
+          uri: http://localhost:9008
+          predicates:
+            - Path=/api/community/**
+        - id: cs-prediction
+          uri: http://localhost:9005
+          predicates:
+            - Path=/api/prediction/**
+        - id: cs-customer-success
+          uri: http://localhost:9007
+          predicates:
+            - Path=/api/success/**
+        - id: cs-ai
+          uri: http://localhost:8087
+          predicates:
+            - Path=/api/ai/**
+        - id: cs-video
+          uri: http://localhost:9009
+          predicates:
+            - Path=/api/video/**
+        - id: cs-voice
+          uri: http://localhost:9010
+          predicates:
+            - Path=/api/voice/**
+        - id: cs-admin
+          uri: http://localhost:8094
+          predicates:
+            - Path=/api/admin/**
+        # WebSocket
         - id: cs-im-ws
           uri: http://localhost:9002
           predicates:

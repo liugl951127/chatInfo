@@ -60,7 +60,7 @@ const userStore = useUserStore()
 const { isMobile, drawerVisible, previewImageUrl } = useResponsive()
 
 // ============ V3 数字孪生 + 预见式服务 (阶段 1) ============
-const profile = ref(null)
+const profile = ref({})
 const profileLoading = ref(false)
 const showPhone = ref(false)
 const showVideo = ref(false)

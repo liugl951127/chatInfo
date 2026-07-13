@@ -11,7 +11,7 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  profile: { type: Object, default: () => ({}) },
+  profile: { type: Object, default: () => ({ avatarUrl: '', nickname: '', vipLevel: 0, vipLabel: '', userId: 0, healthScore: 100, tags: {} }) },
   loading: { type: Boolean, default: false },
 })
 
@@ -40,17 +40,17 @@ const tagChips = computed(() => {
   <div class="profile-center" v-loading="loading">
     <!-- 头部: 头像 + 昵称 + VIP -->
     <div class="pc-header">
-      <el-avatar :size="72" :src="profile.avatarUrl" class="pc-avatar">
-        {{ profile.nickname?.charAt(0) || '?' }}
+      <el-avatar :size="72" :src="profile?.avatarUrl" class="pc-avatar">
+        {{ profile?.nickname?.charAt(0) || '?' }}
       </el-avatar>
       <div class="pc-info">
         <div class="pc-name-row">
-          <span class="pc-name">{{ profile.nickname || '客户' }}</span>
-          <el-tag v-if="profile.vipLevel > 0" type="warning" size="small" class="pc-vip">
-            {{ profile.vipLabel }}
+          <span class="pc-name">{{ profile?.nickname || '客户' }}</span>
+          <el-tag v-if="profile?.vipLevel > 0" type="warning" size="small" class="pc-vip">
+            {{ profile?.vipLabel }}
           </el-tag>
         </div>
-        <div class="pc-id">ID: {{ profile.userId }}</div>
+        <div class="pc-id">ID: {{ profile?.userId }}</div>
       </div>
     </div>
 
@@ -58,37 +58,37 @@ const tagChips = computed(() => {
     <div class="pc-health" :style="{ borderColor: healthColor }">
       <div class="pc-health-label">客户健康分</div>
       <div class="pc-health-score" :style="{ color: healthColor }">
-        {{ profile.healthScore ?? 100 }}
+        {{ profile?.healthScore ?? 100 }}
         <span class="pc-health-max">/ 100</span>
       </div>
-      <div class="pc-health-tier">{{ profile.healthLabel || '健康' }}</div>
-      <el-progress :percentage="profile.healthScore ?? 100" :stroke-width="6"
+      <div class="pc-health-tier">{{ profile?.healthLabel || '健康' }}</div>
+      <el-progress :percentage="profile?.healthScore ?? 100" :stroke-width="6"
                    :color="healthColor" :show-text="false" />
     </div>
 
     <!-- 4 个数据卡片 -->
     <div class="pc-stats">
       <div class="pc-stat">
-        <div class="pc-stat-value">{{ profile.totalOrders ?? 0 }}</div>
+        <div class="pc-stat-value">{{ profile?.totalOrders ?? 0 }}</div>
         <div class="pc-stat-label">历史订单</div>
       </div>
       <div class="pc-stat">
-        <div class="pc-stat-value">¥{{ profile.totalAmount ?? 0 }}</div>
+        <div class="pc-stat-value">¥{{ profile?.totalAmount ?? 0 }}</div>
         <div class="pc-stat-label">累计消费</div>
       </div>
       <div class="pc-stat">
-        <div class="pc-stat-value">{{ profile.avgCsat ?? '-' }}</div>
+        <div class="pc-stat-value">{{ profile?.avgCsat ?? '-' }}</div>
         <div class="pc-stat-label">平均满意度</div>
       </div>
       <div class="pc-stat">
-        <div class="pc-stat-value">{{ profile.totalSessions ?? 0 }}</div>
+        <div class="pc-stat-value">{{ profile?.totalSessions ?? 0 }}</div>
         <div class="pc-stat-label">咨询次数</div>
       </div>
     </div>
 
     <!-- 风险标签 -->
-    <div class="pc-risk" v-if="profile.churnRisk > 0">
-      <el-alert :title="`客户状态: ${profile.churnLabel}`" type="warning" :closable="false" show-icon />
+    <div class="pc-risk" v-if="profile?.churnRisk > 0">
+      <el-alert :title="`客户状态: ${profile?.churnLabel}`" type="warning" :closable="false" show-icon />
     </div>
 
     <!-- 标签云 -->

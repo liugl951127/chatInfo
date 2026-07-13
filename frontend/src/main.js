@@ -7,9 +7,12 @@ import App from './App.vue'
 import router from './router'
 
 const app = createApp(App)
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
 app.use(ElementPlus)
+// 路由守卫需在 pinia 注册后调用
+setupRouterGuards(pinia)
 
 // V3.2: 全局错误处理 - 防止 "Uncaught (in promise)" 默默失败
 // 之前 Customer.vue 的 draft TDZ 错误就是靠这个捕获的

@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useUserStore } from '@/stores/user'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -16,11 +15,20 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
-  const user = useUserStore()
-  if (to.meta.auth && !user.token) return next('/login')
-  if (to.meta.role && user.role !== to.meta.role) return next('/login')
-  next()
-})
+/**
+ * 路由守卫 (由 main.js 调用, 确保 Pinia 已注册).
+ * @param {import('pinia').Pinia} pinia Pinia 实例
+ */
+export function setupRouterGuards(pinia) {
+  router.beforeEach((to, from, next) => {
+    // 动态 import useUserStore 避免 router.js 顶层 import 时 pinia 未就绪
+    import('@/stores/user').then(({ useUserStore }) => {
+      const user = useUserStore(pinia)
+      if (to.meta.auth && !user.token) return next('/login')
+      if (to.meta.role && user.role !== to.meta.role) return next('/login')
+      next()
+    }).catch(() => next())
+  })
+}
 
 export default router

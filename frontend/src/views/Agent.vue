@@ -47,6 +47,7 @@ import AgentDashboard from '@/components/dashboard/AgentDashboard.vue'
 import VideoCallDialog from '@/components/video/VideoCallDialog.vue'
 import { useResponsive } from '@/composables/useResponsive'
 import { useNotification } from '@/composables/useNotification'
+import { useKeyboard } from '@/composables/useKeyboard'
 
 const router = useRouter()
 const userStore = useUserStore()

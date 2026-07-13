@@ -31,6 +31,11 @@ CREATE DATABASE IF NOT EXISTS `online_chat`
 
 USE `online_chat`;
 
+-- V3.2 修复: 临时禁用外键检查, 避免 DROP/CREATE 顺序约束
+-- DROP 时不检查 FK (子表先 DROP 还是主表先 DROP 都行)
+-- CREATE 时不检查 FK (主表先 CREATE 还是子表先 CREATE 都行)
+SET FOREIGN_KEY_CHECKS = 0;
+
 -- ============================================================
 -- cs-auth: 用户表
 -- ============================================================
@@ -147,6 +152,8 @@ CREATE TABLE `audit_log` (
   KEY `idx_target` (`target`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '通用审计日志 (login/close/...)';
 
+
+
 -- ============================================================
 -- cs-im: 录像主表 (合规要求)
 -- ============================================================
@@ -188,6 +195,8 @@ CREATE TABLE `chat_record_chunk` (
   KEY `idx_record` (`record_id`),
   CONSTRAINT `fk_chunk_record` FOREIGN KEY (`record_id`) REFERENCES `chat_record` (`id`) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '录像分片';
+
+
 
 -- ============================================================
 -- cs-im: 录制/转接/退出独立审计日志
@@ -545,3 +554,7 @@ ALTER TABLE chat_record
 -- 9) 复合索引: 通话按主叫状态
 ALTER TABLE voice_call
   ADD INDEX idx_caller_status_time (caller_id, status, created_at);
+
+-- 恢复外键检查
+SET FOREIGN_KEY_CHECKS = 1;
+

@@ -82,11 +82,10 @@ export default defineConfig({
     port: 5173,
     host: '0.0.0.0',
     proxy: {
-      // V3.2 联调: 全部指向 cs-auth (8094)
-      // 后续启动 cs-gateway/cs-im 等可改为 9000 网关
-      '/auth': { target: 'http://localhost:8094', changeOrigin: true },
-      '/api':  { target: 'http://localhost:8094', changeOrigin: true, ws: true },
-      '/ws':   { target: 'http://localhost:8094', changeOrigin: true, ws: true }
+      // V3.2 联调: 指向 cs-gateway (9000) - 统一入口
+      '/auth': { target: 'http://localhost:9000', changeOrigin: true },
+      '/api':  { target: 'http://localhost:9000', changeOrigin: true, ws: true },
+      '/ws':   { target: 'http://localhost:9000', changeOrigin: true, ws: true }
     }
   }
 })

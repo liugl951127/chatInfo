@@ -797,7 +797,7 @@ onBeforeUnmount(() => {
 
           <!-- Markdown 模式 (V3.2) -->
           <MarkdownEditor
-            v-if="markdownMode"
+            v-if="markdownMode && current"
             v-model="draft"
             :disabled="current.status === 'CLOSED'"
             placeholder="回复客户... 支持 Markdown + 富文本 (Ctrl+Enter 发送)"
@@ -806,7 +806,7 @@ onBeforeUnmount(() => {
 
           <!-- 简洁模式 -->
           <ChatComposer
-            v-else
+            v-else-if="current"
             v-model="draft"
             :disabled="current.status === 'CLOSED'"
             image-accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv"

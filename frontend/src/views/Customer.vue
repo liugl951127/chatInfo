@@ -926,6 +926,7 @@ function onMdAction(payload) {
           </MessageList>
 
           <ChatComposer
+            v-if="session"
             v-model="draft"
             :disabled="session.status === 'CLOSED'"
             image-accept="image/*"

@@ -3,7 +3,6 @@ package com.chat.common.sla;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,14 +22,16 @@ import java.util.concurrent.TimeUnit;
  *   - 容量规划 (调优基础)
  */
 @Component
-@RequiredArgsConstructor
 public class SlowQueryMetrics {
 
     private final MeterRegistry registry;
+    private final Counter errorCounter;
     private final ConcurrentHashMap<String, Timer> timers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Counter> slowCounters = new ConcurrentHashMap<>();
-    private final Counter errorCounter;
 
+    /**
+     * 显式构造器 (Spring 注入用).
+     */
     public SlowQueryMetrics(MeterRegistry registry) {
         this.registry = registry;
         this.errorCounter = Counter.builder("http_slow_errors_total")

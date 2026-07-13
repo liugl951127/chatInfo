@@ -34,7 +34,7 @@ public class SentimentAnalyzer {
     private static final Set<String> POSITIVE = Set.of(
         "好", "棒", "优秀", "满意", "喜欢", "感谢", "谢谢", "赞", "开心", "高兴",
         "完美", "贴心", "专业", "快速", "高效", "nice", "good", "great", "love",
-        "推荐", "支持", "ok", "对的", "没错", "棒棒", "满意", "OK"
+        "推荐", "支持", "ok", "对的", "没错", "棒棒"
     );
 
     private static final Set<String> NEGATIVE = Set.of(
@@ -49,7 +49,7 @@ public class SentimentAnalyzer {
 
     private static final Set<String> DEGREE_STRONG = Set.of(
         "很", "非常", "特别", "极", "超级", "超", "巨", "太", "十分", "格外",
-        "异常", "极其", "格外", "分外", "相当"
+        "异常", "极其", "分外", "相当"
     );
 
     private static final Set<String> DEGREE_WEAK = Set.of(

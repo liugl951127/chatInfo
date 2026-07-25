@@ -190,6 +190,7 @@ CREATE TABLE `chat_record_chunk` (
   `byte_size`    INT          NOT NULL DEFAULT 0      COMMENT '该分片大小 (字节)',
   `storage_path` VARCHAR(255) NOT NULL                COMMENT '落盘路径 <root>/<recordId>/<seq>-<uuid>.webm',
   `uploaded_at`  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `checksum`     CHAR(64)         DEFAULT NULL                COMMENT 'SHA-256 校验和 (防网络损坏)',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_record_seq` (`record_id`, `sequence_no`),
   KEY `idx_record` (`record_id`),

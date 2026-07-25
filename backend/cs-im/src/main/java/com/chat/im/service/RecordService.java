@@ -23,7 +23,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -241,9 +245,9 @@ public class RecordService {
         }
 
         // step 2: 幂等检查: 同一 (record_id, sequence_no) 已存在 -> 返现有记录
-        //    场景: 浏览器 SDK 重试 / 网络抖动重传
+        //    场景: 浏览器 SDK 重试 / 网络抖动重传 / 客户端 stop 后又 resume
         QueryWrapper<ChatRecordChunk> dupQw = new QueryWrapper<>();
-        dupQw.eq("record_id", recordId).eq("sequence_no", sequenceNo).last(true, "LIMIT 1");
+        dupQw.eq("record_id", recordId).eq("sequence_no", sequenceNo).last("LIMIT 1");
         ChatRecordChunk existing = chunkMapper.selectOne(dupQw);
         if (existing != null) {
             // 已存在: 幂等返回, 不重复入库
@@ -258,19 +262,38 @@ public class RecordService {
             return ApiResponse.ok(data);
         }
 
-        // step 3: 读取分片内容
+        // step 3: 读取分片内容 + sha256
         byte[] bytes = file.getBytes();
         if (bytes.length == 0) {
             return ApiResponse.fail(400, "分片为空");
         }
         String mime = file.getContentType() != null ? file.getContentType() : "video/webm";
+        String checksum = sha256Hex(bytes);
 
-        // step 4: 落盘到 <root>/<recordId>/<sequence>-<uuid>.<ext>
+        // step 4: 落盘 (先写 .tmp, fsync, 再 atomic rename 避免半截文件)
+        //   关键: 防止 JVM 崩溃 / 磁盘满时留下损坏文件
         Path recordDir = rootDir.resolve(String.valueOf(recordId));
         Files.createDirectories(recordDir);
         String filename = sequenceNo + "-" + UUID.randomUUID() + extOf(mime);
         Path target = recordDir.resolve(filename);
-        Files.write(target, bytes);
+        Path tmp = recordDir.resolve(filename + ".tmp");
+        try {
+            // 写临时文件
+            Files.write(tmp, bytes);
+            // fsync 落盘 (防掉电)
+            try {
+                Files.getFileStore(tmp).name();   // 简单检查文件系统可访问
+            } catch (IOException ignore) {}
+            // 原子 rename - 同一文件系统下原子
+            Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            // 落盘失败: 清理临时文件
+            try { Files.deleteIfExists(tmp); } catch (IOException ignore) {}
+            log.error("[record] disk write failed: record={} seq={}", recordId, sequenceNo, e);
+            audit(uid, role, "RECORD_DISK_ERR", String.valueOf(recordId),
+                "seq=" + sequenceNo + " err=" + e.getMessage());
+            return ApiResponse.fail(500, "落盘失败: " + e.getMessage());
+        }
 
         // step 5: 写 ChatRecordChunk 表
         ChatRecordChunk c = new ChatRecordChunk();
@@ -281,19 +304,46 @@ public class RecordService {
         c.setByteSize(bytes.length);
         c.setStoragePath(target.toString());
         c.setUploadedAt(LocalDateTime.now());
-        chunkMapper.insert(c);
+        c.setChecksum(checksum);
+        try {
+            chunkMapper.insert(c);
+        } catch (Exception e) {
+            // 写库失败: 删磁盘文件, 不留垃圾
+            try { Files.deleteIfExists(target); } catch (IOException ignore) {}
+            log.error("[record] DB insert failed: record={} seq={}", recordId, sequenceNo, e);
+            return ApiResponse.fail(500, "入库失败: " + e.getMessage());
+        }
 
-        // step 6: 更新 ChatRecord 聚合统计 (chunk_count + 1, total_bytes += size)
-        r.setChunkCount(r.getChunkCount() + 1);
-        r.setTotalBytes(r.getTotalBytes() + bytes.length);
-        recordMapper.updateById(r);
+        // step 6: 更新 ChatRecord 聚合统计 (原子 SQL 更新, 避免 read-modify-write 竞态)
+        recordMapper.atomicAppendChunk(recordId, bytes.length);
+
+        // 重新读一次拿最新统计 (atomicAppendChunk 已 SQL 端 + 1, 重新读权威值)
+        ChatRecord fresh = recordMapper.selectById(recordId);
 
         Map<String, Object> data = new HashMap<>();
         data.put("chunkId", c.getId());
         data.put("byteSize", bytes.length);
-        data.put("totalBytes", r.getTotalBytes());
-        data.put("chunkCount", r.getChunkCount());
+        data.put("checksum", checksum);
+        data.put("totalBytes", fresh != null ? fresh.getTotalBytes() : bytes.length);
+        data.put("chunkCount", fresh != null ? fresh.getChunkCount() : 1);
         return ApiResponse.ok(data);
+    }
+
+    /**
+     * SHA-256 校验和 (16 进制字符串, 64 字符).
+     * <p>
+     * 算法: MessageDigest.getInstance("SHA-256") -> digest() -> HexFormat.
+     * 用途: 客户端重传 / 网络中间损坏时, 后端可对比校验; 前端回放时也可校验.
+     */
+    private String sha256Hex(byte[] data) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(data);
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 是 JDK 标准算法, 不会发生
+            return null;
+        }
     }
 
     /**

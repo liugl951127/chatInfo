@@ -19,4 +19,6 @@ public class ChatRecordChunk {
     private Integer byteSize;
     private String storagePath;
     private LocalDateTime uploadedAt;
+    /** SHA-256 校验和 (hex 64 字符). 网络传输/落盘损坏时不一致. */
+    private String checksum;
 }

@@ -183,10 +183,12 @@ export class ChatRecordSDK {
     this._unmountIndicator()
     this._teardownRecorder()
 
+    // V3.3 改进: 等所有 pending 上传完成 (加 30s 上限, 避免 SDK 永久 hang)
     try {
-      await this.uploadPromise
+      const uploadTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('upload timeout 30s')), 30000))
+      await Promise.race([this.uploadPromise, uploadTimeout])
     } catch (e) {
-      console.warn('[record] upload queue has failures:', e)
+      console.warn('[record] upload wait timeout/failure:', e?.message)
     }
 
     // 只在显式 stop 时才调 /end (让录像标记为结束)
@@ -198,8 +200,9 @@ export class ChatRecordSDK {
       this.opts.onError(e)
     }
 
-    // 清理持久化的 recordId
+    // 清理持久化 (recordId + uploaded seqs)
     this._clearRecordId(this.recordId)
+    this._clearUploadedSeqs()
     this.opts.onState('stopped')
   }
 
@@ -240,7 +243,7 @@ export class ChatRecordSDK {
     if (this._stopping) return
     // 停 MediaRecorder, 触发最后一次 ondataavailable
     try { if (this.recorder?.state !== 'inactive') this.recorder.stop() } catch (e) {}
-    // 同步 flush 用 fetch keepalive (比 sendBeacon 更可靠, 支持 multipart + 较大 body)
+    // V3.3 改进: keepalive 同步 flush pending + 触发 /end (避免 record 永远 active 变孤儿)
     const pending = this.chunkQueue.filter(c => !c.uploaded)
     for (const c of pending) {
       try {
@@ -262,7 +265,20 @@ export class ChatRecordSDK {
         console.warn('[record] keepalive upload failed', e)
       }
     }
-    // 不调 /end, 让录像保持 active
+    // V3.3 改进: 同步 fire-and-forget 调 /end (用 Image beacon, 避免 multipart keepalive 限制)
+    //   关键: record 不 end 就会变孤儿, 后端 cron 30min 才能清理
+    if (this.recordId && !this._explicitStop) {
+      try {
+        const endUrl = this._buildUrl('/end', { recordId: this.recordId, endReason: 'PAGE_CLOSE' })
+        // navigator.sendBeacon 不支持 multipart, 但 GET /end + query 是 OK 的
+        // 我们 /end 是 POST, 用 keepalive fetch
+        fetch(endUrl, {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + this.opts.token },
+          keepalive: true,
+        }).catch(() => {})
+      } catch (e) {}
+    }
   }
 
   _wireLifecycleHooks() {
@@ -371,8 +387,9 @@ export class ChatRecordSDK {
   }
 
   async _uploadOne(blob, sequence) {
-    let attempt = 0
-    while (attempt < MAX_RETRIES) {
+    // V3.3 改进: 指数退避 (500ms, 1s, 2s, 4s, 8s) + 上限 5 次 + 上传成功持久化
+    const maxRetries = 5
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         await this._callApi('uploadChunk', {
           recordId: this.recordId,
@@ -381,16 +398,61 @@ export class ChatRecordSDK {
           file: blob,
         })
         if (this.chunkQueue[sequence]) this.chunkQueue[sequence].uploaded = true
+        // V3.3: 持久化已上传 seq, 刷新页面 / resume 时可查 (避免重传)
+        this._markSeqUploaded(sequence)
         return
       } catch (e) {
-        attempt++
-        if (attempt >= MAX_RETRIES) {
+        if (attempt === maxRetries - 1) {
+          console.error('[record] upload failed after', maxRetries, 'retries, seq=', sequence, e)
           this.opts.onError(e)
           throw e
         }
-        await new Promise(r => setTimeout(r, 500 * attempt))
+        // 指数退避: 500ms, 1s, 2s, 4s
+        const delay = 500 * Math.pow(2, attempt)
+        await new Promise(r => setTimeout(r, delay))
       }
     }
+  }
+
+  /**
+   * V3.3: 持久化已上传 seq (localStorage).
+   * 用途: 页面刷新 / 网络断开后, 续录时 SDK 可查询哪些 seq 已上传, 跳过重传.
+   * 存储: 同一 recordId 共享一个 Set, 大小上限 1000 (FIFO).
+   */
+  _markSeqUploaded(sequence) {
+    if (!this.recordId) return
+    try {
+      const key = `cs_record_uploaded_${this.recordId}`
+      const raw = localStorage.getItem(key)
+      const set = new Set(raw ? JSON.parse(raw) : [])
+      set.add(sequence)
+      // 限上限 1000
+      const arr = Array.from(set)
+      if (arr.length > 1000) arr.splice(0, arr.length - 1000)
+      localStorage.setItem(key, JSON.stringify(arr))
+    } catch (e) {}
+  }
+
+  /**
+   * V3.3: 查询已上传 seq 集合.
+   */
+  _getUploadedSeqs() {
+    if (!this.recordId) return new Set()
+    try {
+      const key = `cs_record_uploaded_${this.recordId}`
+      const raw = localStorage.getItem(key)
+      return new Set(raw ? JSON.parse(raw) : [])
+    } catch (e) { return new Set() }
+  }
+
+  /**
+   * V3.3: 清理已上传 seq 持久化 (record 结束后调).
+   */
+  _clearUploadedSeqs() {
+    if (!this.recordId) return
+    try {
+      localStorage.removeItem(`cs_record_uploaded_${this.recordId}`)
+    } catch (e) {}
   }
 
   async _callApi(name, args) {
